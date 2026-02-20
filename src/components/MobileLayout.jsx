@@ -48,6 +48,7 @@ function PitchTab({
   arsenal, recommendations, selectedOutcome, onSelectOutcome,
   inPlayDetail, onInPlayChange, onRecord, onUndo, canRecord, canUndo,
   balls, strikes, paPitches, currentBatter,
+  outs, on1b, on2b, on3b, inning, topBottom,
 }) {
   const aiRecZones = new Set(recommendations.map(r => r.zone))
   const ZONE_ROWS = ['HIGH','MID','LOW']
@@ -75,6 +76,48 @@ function PitchTab({
           </div>
         </div>
       )}
+
+      {/* Game state bar — outs + runners + inning */}
+      <div style={{
+        display:'grid', gridTemplateColumns:'1fr 1fr 1fr',
+        gap:6,
+      }}>
+        {/* Outs */}
+        <div style={{ padding:'8px 10px', background:C.panel, borderRadius:6, border:`1px solid ${C.border}`, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+          <div style={{ fontFamily:mono, fontSize:7, letterSpacing:2, color:C.dim }}>OUTS</div>
+          <div style={{ display:'flex', gap:5 }}>
+            {[0,1,2].map(i => (
+              <div key={i} style={{
+                width:14, height:14, borderRadius:'50%',
+                border:`2px solid ${i < outs ? C.red : C.border}`,
+                background: i < outs ? 'rgba(255,77,106,0.3)' : 'transparent',
+              }}/>
+            ))}
+          </div>
+        </div>
+
+        {/* Runners mini diamond */}
+        <div style={{ padding:'8px 10px', background:C.panel, borderRadius:6, border:`1px solid ${C.border}`, display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
+          <div style={{ fontFamily:mono, fontSize:7, letterSpacing:2, color:C.dim }}>RUNNERS</div>
+          <div style={{ position:'relative', width:36, height:36 }}>
+            {/* 2nd base — top center */}
+            <div style={{ position:'absolute', top:0, left:'50%', transform:'translateX(-50%) rotate(45deg)', width:12, height:12, border:`2px solid ${on2b ? C.gold : C.border}`, background: on2b ? 'rgba(245,166,35,0.4)' : 'transparent' }}/>
+            {/* 3rd base — left */}
+            <div style={{ position:'absolute', top:'50%', left:0, transform:'translateY(-50%) rotate(45deg)', width:12, height:12, border:`2px solid ${on3b ? C.gold : C.border}`, background: on3b ? 'rgba(245,166,35,0.4)' : 'transparent' }}/>
+            {/* 1st base — right */}
+            <div style={{ position:'absolute', top:'50%', right:0, transform:'translateY(-50%) rotate(45deg)', width:12, height:12, border:`2px solid ${on1b ? C.gold : C.border}`, background: on1b ? 'rgba(245,166,35,0.4)' : 'transparent' }}/>
+            {/* Home — bottom center */}
+            <div style={{ position:'absolute', bottom:0, left:'50%', transform:'translateX(-50%) rotate(45deg)', width:10, height:10, border:`1px solid ${C.dim}`, background:'transparent' }}/>
+          </div>
+        </div>
+
+        {/* Inning */}
+        <div style={{ padding:'8px 10px', background:C.panel, borderRadius:6, border:`1px solid ${C.border}`, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
+          <div style={{ fontFamily:mono, fontSize:7, letterSpacing:2, color:C.dim }}>INNING</div>
+          <div style={{ fontFamily:bebas, fontSize:24, color:C.gold, lineHeight:1 }}>{inning}</div>
+          <div style={{ fontFamily:mono, fontSize:8, color:C.gold, letterSpacing:1 }}>{topBottom === 'top' ? '▲ TOP' : '▼ BOT'}</div>
+        </div>
+      </div>
 
       {/* Zone grid — big touch targets */}
       <div>
@@ -529,6 +572,8 @@ export default function MobileLayout({
             canRecord={canRecord} canUndo={canUndo}
             balls={balls} strikes={strikes}
             paPitches={paPitches} currentBatter={currentBatter}
+            outs={outs} on1b={on1b} on2b={on2b} on3b={on3b}
+            inning={inning} topBottom={topBottom}
           />
         )}
         {tab === 'ai' && (
