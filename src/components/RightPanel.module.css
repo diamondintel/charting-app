@@ -1,0 +1,303 @@
+.panel {
+  border-right: none;
+  border-left: 1px solid var(--border);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.predWarning {
+  background: linear-gradient(135deg, rgba(255,77,106,0.08) 0%, rgba(255,77,106,0.03) 100%);
+  border-bottom: 1px solid rgba(255,77,106,0.2);
+  padding: 12px 16px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.predIcon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+.predTitle {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--red);
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.predText {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.aiSection { padding: 14px 16px; }
+
+.noRecs {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 16px 0;
+}
+
+.recCard {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.recCard::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--rec-color);
+}
+
+.rank1 {
+  border-color: rgba(245,166,35,0.3);
+  background: rgba(245,166,35,0.04);
+}
+
+.recCard:hover {
+  border-color: rgba(245,166,35,0.4);
+  filter: brightness(1.1);
+}
+
+.recHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.recRank {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--rec-color);
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.recInfo { flex: 1; }
+
+.recPitch {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text-primary);
+  letter-spacing: 1px;
+}
+
+.recZone {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--text-secondary);
+  letter-spacing: 1px;
+  margin-top: 1px;
+}
+
+.recConfWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.recConfPct {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.recConfLabel {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.recBar {
+  height: 3px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 2px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.recBarFill {
+  height: 100%;
+  background: var(--rec-color);
+  border-radius: 2px;
+  box-shadow: 0 0 8px var(--rec-color);
+  width: var(--rec-pct);
+  transition: width 0.4s ease;
+}
+
+.recReasons { display: flex; flex-direction: column; gap: 3px; }
+
+.recReason {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.recReason::before {
+  content: '›';
+  color: var(--rec-color);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* Effectiveness */
+.effSection {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.effGauges { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+.effGauge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.effName {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--text-secondary);
+  letter-spacing: 1px;
+  width: 68px;
+  flex-shrink: 0;
+}
+
+.effBarWrap {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.effBarFill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--eff-color);
+  box-shadow: 0 0 6px var(--eff-color);
+  width: var(--eff-pct);
+  transition: width 0.4s ease;
+}
+
+.effPct {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--text-secondary);
+  width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── PCI Bar ──────────────────────────────────────────────────────────────── */
+.pciBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border);
+}
+
+.pciBar[data-band="hot"]    { background: rgba(0,229,160,0.06); }
+.pciBar[data-band="normal"] { background: rgba(245,166,35,0.04); }
+.pciBar[data-band="off"]    { background: rgba(255,77,106,0.06); }
+
+.pciLeft { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+
+.pciLabel {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px; letter-spacing: 2px; color: var(--text-dim);
+}
+
+.pciScore {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 26px; line-height: 1;
+  color: var(--gold);
+}
+
+.pciRight { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+
+.pciTrack {
+  height: 4px; background: rgba(255,255,255,0.08);
+  border-radius: 2px; overflow: hidden;
+}
+
+.pciScoreFill {
+  height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, #FF4D6A, #F5A623, #00E5A0);
+  transition: width 0.4s ease;
+}
+
+.pciLabel2 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px; letter-spacing: 1px; color: var(--text-dim);
+}
+
+/* ── Reverse Switch ───────────────────────────────────────────────────────── */
+.reverseAlert {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.reverseHot {
+  background: rgba(167,139,250,0.08);
+  border-left: 3px solid #a78bfa;
+}
+
+.reverseStd {
+  background: rgba(0,212,255,0.06);
+  border-left: 3px solid var(--cyan);
+}
+
+.reverseIcon {
+  font-size: 20px;
+  color: #a78bfa;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.reverseTitle {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px; letter-spacing: 2px;
+  color: #a78bfa; margin-bottom: 3px;
+}
+
+.reverseText {
+  font-size: 11px; color: var(--text-primary); line-height: 1.4;
+}
+
+.reverseAvoid {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px; letter-spacing: 1px;
+  color: #FF4D6A; margin-top: 4px;
+}

@@ -1,0 +1,255 @@
+import { supabase } from './supabase'
+
+// ─── Teams ────────────────────────────────────────────────────────────────────
+
+export async function getTeams() {
+  const { data, error } = await supabase.from('teams').select('*').order('name')
+  if (error) throw error
+  return data || []
+}
+
+export async function getOrCreateTeam(name) {
+  const { data: existing } = await supabase.from('teams').select('*').eq('name', name).single()
+  if (existing) return existing
+  const { data, error } = await supabase.from('teams').insert({ name }).select().single()
+  if (error) throw error
+  return data
+}
+
+// ─── Games ────────────────────────────────────────────────────────────────────
+
+export async function getGames(teamId, limit = 20) {
+  let q = supabase.from('games').select('*').order('game_date', { ascending: false }).limit(limit)
+  if (teamId) q = q.eq('team_id', teamId)
+  const { data, error } = await q
+  if (error) throw error
+  return data || []
+}
+
+export async function createGame(teamId, opponent, gameDate, location = '') {
+  const { data, error } = await supabase
+    .from('games')
+    .insert({ team_id: teamId, opponent, game_date: gameDate, location })
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+// ─── Players ──────────────────────────────────────────────────────────────────
+
+export async function getPlayers(teamId) {
+  const { data, error } = await supabase
+    .from('players')
+    .select('*')
+    .eq('team_id', teamId)
+    .eq('team_side', 'ours')
+    .order('lineup_order')
+    .order('name')
+  if (error) throw error
+  return data || []
+}
+
+export async function getPitchers(teamId) {
+  const { data, error } = await supabase
+    .from('players')
+    .select('*')
+    .eq('team_id', teamId)
+    .eq('team_side', 'ours')
+    .eq('is_pitcher', true)
+    .order('name')
+  if (error) throw error
+  return data || []
+}
+
+export async function getOpponentLineup(teamId, opponentName) {
+  const { data, error } = await supabase
+    .from('players')
+    .select('*')
+    .eq('team_id', teamId)
+    .eq('team_side', 'opponent')
+    .eq('opponent_name', opponentName)
+    .order('lineup_order')
+  if (error) throw error
+  return data || []
+}
+
+// ─── Plate Appearances ────────────────────────────────────────────────────────
+
+export async function createPA(gameId, inning, outsStart, batterName, pitcherName, lineupSpot) {
+  const { data, error } = await supabase
+    .from('plate_appearances')
+    .insert({
+      game_id: gameId,
+      inning,
+      outs_start: outsStart,
+      batter_name: batterName,
+      pitcher_name: pitcherName,
+      lineup_spot: lineupSpot,
+    })
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function updatePAResult(paId, paResult) {
+  const { error } = await supabase
+    .from('plate_appearances')
+    .update({ pa_result: paResult })
+    .eq('pa_id', paId)
+  if (error) throw error
+}
+
+export async function getPAsForGame(gameId) {
+  const { data, error } = await supabase
+    .from('plate_appearances')
+    .select('*')
+    .eq('game_id', gameId)
+    .order('created_at')
+  if (error) throw error
+  return data || []
+}
+
+// ─── Pitches ──────────────────────────────────────────────────────────────────
+
+export async function insertPitch(pitch) {
+  const { data, error } = await supabase
+    .from('pitches')
+    .insert(pitch)
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function deletePitch(pitchId) {
+  const { error } = await supabase.from('pitches').delete().eq('pitch_id', pitchId)
+  if (error) throw error
+}
+
+export async function getPitchesForGame(gameId) {
+  const { data, error } = await supabase
+    .from('pitches')
+    .select('*')
+    .eq('game_id', gameId)
+    .order('pitch_ts')
+  if (error) throw error
+  return data || []
+}
+
+export async function getPitchesForPA(paId) {
+  const { data, error } = await supabase
+    .from('pitches')
+    .select('*')
+    .eq('pa_id', paId)
+    .order('pitch_ts')
+  if (error) throw error
+  return data || []
+}
+
+export async function getRecentPitches(gameId, limit = 20) {
+  const { data, error } = await supabase
+    .from('pitches')
+    .select('*')
+    .eq('game_id', gameId)
+    .order('pitch_ts', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data || []
+}
+
+// ─── Zone label util ──────────────────────────────────────────────────────────
+
+const ZONE_LABELS = {
+  '1-1': 'high-inside',  '1-2': 'high-middle',  '1-3': 'high-away',
+  '2-1': 'mid-inside',   '2-2': 'heart',         '2-3': 'mid-away',
+  '3-1': 'low-inside',   '3-2': 'low-middle',    '3-3': 'low-away',
+}
+
+export function zoneLabel(row, col) {
+  return ZONE_LABELS[`${row}-${col}`] || 'unknown'
+}
+
+// ─── Roster Management ────────────────────────────────────────────────────────
+
+export async function upsertPlayer(player) {
+  const { data, error } = await supabase
+    .from('players')
+    .upsert(player, { onConflict: 'team_id,name' })
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function updatePlayer(playerId, updates) {
+  const { data, error } = await supabase
+    .from('players')
+    .update(updates)
+    .eq('player_id', playerId)
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function upsertPitcher(teamId, pitcher) {
+  const { data, error } = await supabase
+    .from('players')
+    .upsert({
+      team_id:         teamId,
+      team_side:       'ours',
+      is_pitcher:      true,
+      name:            pitcher.name,
+      jersey:          pitcher.jersey,
+      throws:          pitcher.throws || 'R',
+      pitcher_arsenal: pitcher.pitcher_arsenal || [],
+      pitching_style:  pitcher.pitching_style || '',
+      pitcher_notes:   pitcher.pitcher_notes || '',
+      pitch_speeds:    pitcher.pitch_speeds || {},
+      lineup_order:    pitcher.lineup_order || 0,
+    }, { onConflict: 'team_id,name' })
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function deletePlayer(playerId) {
+  const { error } = await supabase
+    .from('players')
+    .delete()
+    .eq('player_id', playerId)
+  if (error) throw error
+}
+
+export async function upsertOpponentPlayer(teamId, opponentName, player) {
+  const { data, error } = await supabase
+    .from('players')
+    .upsert({
+      ...player,
+      team_id: teamId,
+      team_side: 'opponent',
+      opponent_name: opponentName,
+    }, { onConflict: 'team_id,name' })
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function clearOpponentLineup(teamId, opponentName) {
+  const { error } = await supabase
+    .from('players')
+    .delete()
+    .eq('team_id', teamId)
+    .eq('team_side', 'opponent')
+    .eq('opponent_name', opponentName)
+  if (error) throw error
+}
+
+export async function getPlayersForTeam(teamId) {
+  const { data, error } = await supabase
+    .from('players')
+    .select('*')
+    .eq('team_id', teamId)
+    .eq('team_side', 'ours')
+    .order('lineup_order')
+    .order('name')
+  if (error) throw error
+  return data || []
+}

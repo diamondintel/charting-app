@@ -1,0 +1,309 @@
+.console {
+  height: 72px;
+  background: linear-gradient(180deg, var(--panel) 0%, #06111D 100%);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 10px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.separator {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--cyan) 30%, var(--gold) 70%, transparent 100%);
+  background-size: 200% 100%;
+  animation: gradientShift 4s ease-in-out infinite;
+}
+
+.outcomeBtn {
+  padding: 0 14px;
+  height: 44px;
+  border: 1px solid var(--btn-border, var(--border));
+  border-radius: 3px;
+  background: rgba(0,0,0,0.3);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  color: var(--btn-color, var(--text-secondary));
+  text-transform: uppercase;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+}
+
+.outcomeBtn:hover {
+  background: rgba(255,255,255,0.04);
+  box-shadow: 0 0 12px var(--btn-glow, transparent);
+  border-color: var(--btn-color);
+}
+
+.outcomeSel {
+  background: color-mix(in srgb, var(--btn-color) 15%, transparent) !important;
+  border-color: var(--btn-color) !important;
+  box-shadow: 0 0 16px var(--btn-glow) !important;
+}
+
+.divider {
+  width: 1px;
+  height: 32px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.recordBtn {
+  height: 52px;
+  padding: 0 24px;
+  border-radius: 4px;
+  background: var(--gold);
+  border: none;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: var(--void);
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+  box-shadow: 0 0 20px rgba(245,166,35,0.3);
+  flex-shrink: 0;
+}
+
+.recordBtn:hover:not(:disabled) {
+  box-shadow: 0 0 30px rgba(245,166,35,0.5);
+  filter: brightness(1.1);
+}
+
+.recordDisabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none !important;
+}
+
+.spacer { flex: 1; }
+
+.utilBtn {
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(26,53,80,0.8);
+  border-radius: 3px;
+  background: rgba(0,0,0,0.2);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.utilBtn:hover:not(:disabled) {
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+.utilBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+}
+
+.statusLabel {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.statusDot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: blink 2s ease-in-out infinite;
+}
+
+.statusText {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--green);
+  letter-spacing: 1px;
+}
+
+/* ── In Play Sheet ─────────────────────────────────────────────── */
+.consoleWrap {
+  flex-shrink: 0;
+  position: relative;
+}
+
+.inPlaySheet {
+  background: linear-gradient(180deg, rgba(0,229,160,0.06), rgba(12,28,46,0.98));
+  border-top: 1px solid rgba(0,229,160,0.3);
+  padding: 10px 16px 8px;
+  animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.inPlayTitle {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--green);
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+
+.inPlayRow {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.inPlayGroup {
+  flex: 1;
+}
+
+.inPlayLabel {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--text-secondary);
+  letter-spacing: 1.5px;
+  margin-bottom: 5px;
+}
+
+.inPlayPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.inPlayPill {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.inPlayPill:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.inPlayPillSel {
+  background: rgba(0,229,160,0.15) !important;
+  border-color: var(--green) !important;
+  color: var(--green) !important;
+}
+
+.inPlayCounters {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.inPlayCounter {
+  text-align: center;
+}
+
+.counterRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.counterBtn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.counterBtn:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.counterVal {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--green);
+  width: 28px;
+  text-align: center;
+  line-height: 1;
+}
+
+.rosterBtn {
+  background: rgba(167,139,250,0.1);
+  border: 1px solid rgba(167,139,250,0.3);
+  color: #a78bfa;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  border-radius: 6px;
+  padding: 0 14px;
+  height: 36px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.rosterBtn:hover { background: rgba(167,139,250,0.2); }
+
+.pitcherSelect {
+  background: rgba(0,229,160,0.08);
+  border: 1px solid rgba(0,229,160,0.25);
+  color: #00E5A0;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  border-radius: 6px;
+  padding: 0 10px;
+  height: 36px;
+  cursor: pointer;
+  outline: none;
+  max-width: 180px;
+}
+
+.pitcherSelect:focus { border-color: #00E5A0; }
+
+.pitcherLabel {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #00E5A0;
+  padding: 0 10px;
+  white-space: nowrap;
+}

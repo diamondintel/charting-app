@@ -1,0 +1,323 @@
+.panel {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.section {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(26,53,80,0.6);
+}
+
+.signalSection {
+  flex: 1;
+  overflow: hidden;
+  border-bottom: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Count */
+.countDisplay {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0 2px;
+}
+
+.countMain {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 68px;
+  line-height: 1;
+  color: var(--gold);
+  text-shadow: 0 0 30px rgba(245,166,35,0.4);
+  letter-spacing: -2px;
+}
+
+.countLabelRow {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+}
+
+.countSub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.outsRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.outsLabel {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+}
+
+.outPip {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--red);
+  transition: all 0.2s;
+}
+
+.outActive {
+  background: var(--red);
+  box-shadow: 0 0 8px rgba(255,77,106,0.6);
+}
+
+/* Base diamond */
+.diamondWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0 2px;
+}
+
+.diamond {
+  width: 90px; height: 90px;
+  position: relative;
+  transform: rotate(45deg);
+}
+
+.diamondField {
+  position: absolute;
+  inset: 11px;
+  border: 1px solid rgba(26,53,80,0.4);
+  background: rgba(0,212,255,0.02);
+}
+
+.base {
+  position: absolute;
+  width: 22px; height: 22px;
+  border: 2px solid var(--border);
+  background: rgba(26,53,80,0.3);
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+.occupied {
+  background: var(--gold) !important;
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 12px rgba(245,166,35,0.5);
+}
+
+.home   { bottom: -11px; left: 34px; }
+.first  { right: -11px;  bottom: 34px; }
+.second { top: -11px;    left: 34px; }
+.third  { left: -11px;   bottom: 34px; }
+
+.baseLabels {
+  display: flex;
+  gap: 16px;
+  margin-top: 6px;
+}
+
+.baseLabelOn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--gold);
+  letter-spacing: 1px;
+}
+
+.baseLabelOff {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.baseToggleRow {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.baseToggle {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: rgba(0,0,0,0.2);
+  color: var(--text-dim);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  transition: all 0.15s;
+}
+
+.baseToggleOn {
+  background: rgba(245,166,35,0.15);
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: 0 0 8px rgba(245,166,35,0.2);
+}
+
+/* Batter */
+.batterSelect {
+  width: 100%;
+  margin-bottom: 8px;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.noBatterHint {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 8px 0;
+  text-align: center;
+}
+
+.batterCard {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--gold);
+  padding: 10px 12px;
+  border-radius: 2px;
+}
+
+.batterHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.batterNumber {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--gold);
+  line-height: 1;
+}
+
+.batterInfo { flex: 1; }
+
+.batterName {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.batterMeta {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--text-secondary);
+  letter-spacing: 1px;
+}
+
+.batterTypePill {
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+
+.batterStatsRow {
+  display: flex;
+  gap: 14px;
+}
+
+.batterStat { display: flex; flex-direction: column; gap: 1px; }
+
+.statVal {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  color: var(--cyan);
+}
+
+.statLbl {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Signal feed */
+.signalFeed {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.signalEmpty {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 8px 0;
+}
+
+.signalItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 2px;
+  border-left: 2px solid;
+}
+
+.signalItem.warn { background: rgba(255,77,106,0.06);  border-color: var(--red); }
+.signalItem.info { background: rgba(0,212,255,0.05);   border-color: var(--cyan); }
+.signalItem.ok   { background: rgba(0,229,160,0.05);   border-color: var(--green); }
+
+.signalBadge {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 1px;
+  padding: 2px 5px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.signalBadge.warn { background: rgba(255,77,106,0.2);  color: var(--red); }
+.signalBadge.info { background: rgba(0,212,255,0.15);  color: var(--cyan); }
+.signalBadge.ok   { background: rgba(0,229,160,0.15);  color: var(--green); }
+
+.signalText {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.batterInput {
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.batterInput:focus {
+  border-color: var(--gold);
+}
+
+.batterInput::placeholder {
+  color: var(--text-dim);
+}

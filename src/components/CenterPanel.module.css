@@ -1,0 +1,426 @@
+.panel {
+  background: #080F19;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Health bar */
+.healthBar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.healthMetric {
+  flex: 1;
+  padding: 10px 14px;
+  border-right: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.healthMetric:last-child { border-right: none; }
+
+.healthMetric::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0;
+  height: 2px;
+  background: var(--metric-color);
+  width: var(--metric-pct);
+  opacity: 0.8;
+  transition: width 0.5s ease;
+}
+
+.healthLabel {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.healthValue {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1;
+}
+
+/* Zone + pitch area */
+.zonePitchArea {
+  flex: 1;
+  display: flex;
+  padding: 14px;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.zoneWrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.zoneTitle {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  align-self: flex-start;
+}
+
+.zoneGrid {
+  display: grid;
+  grid-template-columns: 34px 1fr 1fr 1fr 28px;
+  grid-template-rows: 24px 1fr 1fr 1fr 20px;
+  gap: 3px;
+  width: 100%;
+  max-width: 320px;
+  flex: 1;
+}
+
+.zoneWild {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.zoneColLabel, .zoneRowLabel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.zoneCell {
+  border: 1px solid rgba(26,53,80,0.8);
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all 0.12s ease;
+}
+
+.rowHigh  { background: rgba(255,77,106,0.08); }
+.rowMid   { background: rgba(255,179,71,0.08); }
+.rowLow   { background: rgba(0,229,160,0.08); }
+.heart    { background: rgba(255,77,106,0.18); }
+
+.selected {
+  background: rgba(245,166,35,0.2) !important;
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 12px rgba(245,166,35,0.3), inset 0 0 8px rgba(245,166,35,0.05);
+}
+
+.aiRec::after {
+  content: '★';
+  position: absolute;
+  top: 2px; right: 3px;
+  font-size: 8px;
+  color: var(--gold);
+  text-shadow: 0 0 6px rgba(245,166,35,0.8);
+}
+
+.zoneCell:hover {
+  border-color: rgba(245,166,35,0.4);
+  filter: brightness(1.3);
+}
+
+.zoneLegend {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--text-dim);
+}
+
+.legendSelBox {
+  width: 10px; height: 10px;
+  border: 1px solid var(--gold);
+  border-radius: 1px;
+  background: rgba(245,166,35,0.2);
+}
+
+/* Pitch selector */
+.pitchSelectorWrap {
+  width: 148px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.pitchSelectorTitle {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.pitchPills {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pitchPill {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: rgba(0,0,0,0.2);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.12s ease;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+.pitchPill:hover {
+  border-color: rgba(245,166,35,0.4);
+  color: var(--text-primary);
+}
+
+.pitchSelected {
+  background: rgba(245,166,35,0.12);
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: 0 0 16px rgba(245,166,35,0.15);
+}
+
+.pitchDot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--text-dim);
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+
+.pitchAiHint {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--gold);
+  margin-top: 2px;
+  letter-spacing: 1px;
+}
+
+.pitchAiHintDim {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  letter-spacing: 1px;
+}
+
+.pitchUsage {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  letter-spacing: 1px;
+}
+
+/* Arsenal usage bars */
+.arsenalUsage {
+  margin-top: 16px;
+  padding: 10px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+.arsenalLabel {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+
+.arsenalRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.arsenalName {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  width: 52px;
+  flex-shrink: 0;
+}
+
+.arsenalBarWrap {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.arsenalBarFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.arsenalPct {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--text-dim);
+  width: 28px;
+  text-align: right;
+}
+
+/* Sequence strip */
+.sequenceStrip {
+  height: 86px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 4px;
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.2);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.seqLabel {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.seqPitch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.seqPip {
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  border: 2px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.seqNum {
+  position: absolute;
+  top: -6px; left: -6px;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--void);
+  border: 1px solid var(--border);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.seqPitchName, .seqOutcome {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.seqCount {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.seqNext {
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  border: 2px dashed var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: nextPulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.seqNextIcon {
+  font-size: 18px;
+  color: var(--gold);
+  opacity: 0.6;
+}
+
+.seqCountNext {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  color: var(--gold);
+  letter-spacing: 1px;
+  animation: nextPulse 2s infinite;
+}
+
+.seqSpacer { flex: 1; }
+
+.seqTotal {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.seqTotalLabel {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+}
+
+.seqTotalNum {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 30px;
+  color: var(--text-primary);
+  line-height: 1;
+}

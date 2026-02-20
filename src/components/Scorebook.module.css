@@ -1,0 +1,462 @@
+/* ── Scorebook wrapper ──────────────────────────────────────────────────────── */
+.wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #050C14;
+  overflow: hidden;
+}
+
+/* ── Game header ─────────────────────────────────────────────────────────────── */
+.gameHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #0C1C2E;
+  border-bottom: 1px solid #1A3550;
+  flex-shrink: 0;
+}
+
+.gameTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 3px;
+  color: #F5A623;
+}
+
+.gameSub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: #7BACC8;
+  margin-top: 2px;
+}
+
+.gameStats {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.gStat { text-align: center; }
+
+.gNum {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  color: #E8F4FF;
+  line-height: 1;
+}
+
+.gPitcher {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: #00E5A0;
+  letter-spacing: 1px;
+}
+
+.gLbl {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 2px;
+  color: #3D6080;
+  margin-top: 2px;
+}
+
+/* ── Legend ──────────────────────────────────────────────────────────────────── */
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  background: rgba(255,255,255,0.01);
+  border-bottom: 1px solid #1A3550;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.legLabel {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 2px;
+  color: #3D6080;
+}
+
+.legItem {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: #7BACC8;
+}
+
+.legDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legBox {
+  width: 12px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legSep {
+  width: 1px;
+  height: 14px;
+  background: #1A3550;
+}
+
+/* ── Scrollable grid area ────────────────────────────────────────────────────── */
+.scrollWrap {
+  flex: 1;
+  overflow: auto;
+}
+
+.grid {
+  min-width: 900px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Column headers ──────────────────────────────────────────────────────────── */
+.colHeaders {
+  display: grid;
+  grid-template-columns: 160px repeat(7, 1fr) 64px;
+  background: #0C1C2E;
+  border-bottom: 2px solid #1A3550;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.chBatter {
+  padding: 8px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: #3D6080;
+  border-right: 1px solid #1A3550;
+  display: flex;
+  align-items: center;
+}
+
+.chInn {
+  padding: 6px 4px;
+  text-align: center;
+  border-right: 1px solid #1A3550;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.chInn.chLive {
+  background: rgba(245,166,35,0.08);
+  border: 1px solid rgba(245,166,35,0.2);
+}
+
+.chInn.chFuture { opacity: 0.35; }
+
+.chNum {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  color: #E8F4FF;
+  line-height: 1;
+}
+
+.chLive .chNum { color: #F5A623; }
+.chFuture .chNum { color: #3D6080; }
+
+.chSub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  color: #3D6080;
+  letter-spacing: 1px;
+}
+
+.chLive .chSub { color: #F5A623; }
+
+.chTotals {
+  padding: 8px 4px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 1px;
+  color: #3D6080;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* ── Pitcher strip ───────────────────────────────────────────────────────────── */
+.pitcherStrip {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  background: rgba(0,229,160,0.04);
+  border-top: 1px solid rgba(0,229,160,0.12);
+  border-bottom: 1px solid rgba(0,229,160,0.12);
+}
+
+.pitcherStripLabel {
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: #00E5A0;
+  border-right: 1px solid #1A3550;
+}
+
+.pitcherStripArsenal {
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── Batter row ──────────────────────────────────────────────────────────────── */
+.batterRow {
+  display: grid;
+  grid-template-columns: 160px repeat(7, 1fr) 64px;
+  border-bottom: 1px solid #1A3550;
+  min-height: 80px;
+  transition: background 0.1s;
+}
+
+.batterRow:hover { background: rgba(255,255,255,0.015); }
+.batterRow:last-child { border-bottom: none; }
+
+/* ── Batter info cell ────────────────────────────────────────────────────────── */
+.batterInfo {
+  padding: 6px 8px;
+  border-right: 1px solid #1A3550;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.01);
+  position: sticky;
+  left: 0;
+  z-index: 5;
+}
+
+.batOrder {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: #3D6080;
+  width: 14px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.batJersey {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: #F5A623;
+  width: 20px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.batDetails { flex: 1; min-width: 0; }
+
+.batName {
+  font-size: 11px;
+  font-weight: 600;
+  color: #E8F4FF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.batType {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+
+.batType[data-type="power"]   { color: #FF4D6A; }
+.batType[data-type="contact"] { color: #00D4FF; }
+.batType[data-type="slapper"] { color: #00E5A0; }
+.batType[data-type="unknown"] { color: #3D6080; }
+
+/* ── AB Cell ─────────────────────────────────────────────────────────────────── */
+.abCell {
+  border-right: 1px solid #1A3550;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.abCellLive {
+  background: rgba(245,166,35,0.03);
+  outline: 1px solid rgba(245,166,35,0.15);
+  outline-offset: -1px;
+}
+
+.abCellEmpty {
+  border-right: 1px solid #1A3550;
+  background: rgba(0,0,0,0.08);
+}
+
+/* ── Pitch grid 5x2 ──────────────────────────────────────────────────────────── */
+.pitchGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 2px;
+  flex: 1;
+}
+
+.pitchBox {
+  border-radius: 2px;
+  border: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  aspect-ratio: 1;
+  cursor: default;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pitchEmpty {
+  border-radius: 2px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.03);
+  aspect-ratio: 1;
+}
+
+.pitchDot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pitchLetter {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.pitchZone {
+  position: absolute;
+  bottom: 1px;
+  left: 2px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 5px;
+  color: rgba(255,255,255,0.25);
+  line-height: 1;
+}
+
+/* ── AB footer ───────────────────────────────────────────────────────────────── */
+.abFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1px;
+}
+
+.abResult {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 0.5px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
+}
+
+.abLive {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  color: rgba(245,166,35,0.5);
+  letter-spacing: 1px;
+}
+
+.abCount {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  color: #3D6080;
+}
+
+/* ── Totals column ───────────────────────────────────────────────────────────── */
+.totalsCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+}
+
+.tStat { text-align: center; }
+
+.tNum {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  color: #E8F4FF;
+  line-height: 1;
+}
+
+.tLbl {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 6px;
+  color: #3D6080;
+  letter-spacing: 1px;
+}
+
+/* ── Summary footer rows ─────────────────────────────────────────────────────── */
+.summaryRow {
+  display: grid;
+  grid-template-columns: 160px repeat(7, 1fr) 64px;
+  background: #0C1C2E;
+  border-top: 1px solid #1A3550;
+}
+
+.summaryRow + .summaryRow {
+  border-top: 1px solid #0C1C2E;
+}
+
+.sumLabel {
+  padding: 6px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 2px;
+  color: #3D6080;
+  border-right: 1px solid #1A3550;
+  display: flex;
+  align-items: center;
+}
+
+.sumCell {
+  border-right: 1px solid #1A3550;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.sumNum {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  color: #F5A623;
+  line-height: 1;
+}
