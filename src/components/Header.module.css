@@ -236,3 +236,65 @@
 }
 
 .pitcherDropdown:focus { border-color: #00E5A0; }
+
+/* ── Mobile responsive ───────────────────────────────────────────────────── */
+@media (max-width: 1279px) {
+  .header {
+    height: auto;
+    min-height: 52px;
+    padding: 8px 12px;
+    flex-wrap: nowrap;
+    gap: 10px;
+  }
+
+  .logoMark {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+  }
+
+  .logoInner {
+    font-size: 10px;
+  }
+
+  .titleGroup {
+    display: none;
+  }
+
+  .pitcherWrap {
+    display: none;
+  }
+
+  .scoreboard {
+    padding: 4px 10px;
+    gap: 8px;
+  }
+
+  .scoreNum {
+    font-size: 22px;
+  }
+
+  .teamName {
+    font-size: 7px;
+    letter-spacing: 1px;
+  }
+
+  .scoreDivider {
+    font-size: 16px;
+  }
+
+  .inningNum {
+    font-size: 15px;
+  }
+
+  .livePill {
+    padding: 4px 10px;
+    font-size: 9px;
+    gap: 5px;
+  }
+
+  .liveDot {
+    width: 6px;
+    height: 6px;
+  }
+}
