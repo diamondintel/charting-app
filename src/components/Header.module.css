@@ -298,3 +298,46 @@
     height: 6px;
   }
 }
+
+/* ── Pitcher name responsive ─────────────────────────────────────────────── */
+.pitcherNameFull  { display: inline; }
+.pitcherNameShort { display: none; }
+
+.pitchCountBadge {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--gold);
+  background: rgba(245,166,35,0.15);
+  border: 1px solid rgba(245,166,35,0.3);
+  border-radius: 8px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  letter-spacing: 1px;
+}
+
+@media (max-width: 1279px) {
+  .pitcherNameFull  { display: none; }
+  .pitcherNameShort { display: inline; }
+
+  .pitcherWrap {
+    display: flex !important;
+    align-items: center;
+    margin: 0 4px;
+  }
+
+  .pitcherBadge {
+    padding: 3px 8px;
+    gap: 4px;
+  }
+
+  .pitcherNameText {
+    font-size: 9px;
+    letter-spacing: 0.5px;
+  }
+
+  .pitcherDropdown {
+    font-size: 9px;
+    padding: 3px 8px;
+    max-width: 120px;
+  }
+}

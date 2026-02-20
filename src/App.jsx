@@ -750,6 +750,7 @@ export default function App() {
           pitcherName={pitcherName}
           pitchers={pitchers}
           onPitcherChange={handlePitcherChange}
+          pitchCount={gamePitches.length}
         />
         <MobileLayout {...sharedProps} />
         {showRoster && <RosterTab session={session} onClose={handleRosterClose} />}
@@ -773,6 +774,7 @@ export default function App() {
         pitcherName={pitcherName}
         pitchers={pitchers}
         onPitcherChange={handlePitcherChange}
+        pitchCount={gamePitches.length}
       />
 
       {/* View toggle bar */}

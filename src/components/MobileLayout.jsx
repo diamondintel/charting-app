@@ -60,54 +60,63 @@ function PitchTab({
   return (
     <div style={{ flex:1, overflow:'auto', padding:'10px 12px', display:'flex', flexDirection:'column', gap:10 }}>
 
-      {/* ── Command strip: pitcher + count + batter all in one compact row ── */}
-      <div style={{ background:C.panel, borderRadius:6, border:`1px solid ${C.border}`, overflow:'hidden' }}>
-
-        {/* Row 1: Pitcher left | Count center-right */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 10px', background:'rgba(0,229,160,0.05)', borderBottom:`1px solid ${C.border}` }}>
-          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-            <span style={{ fontSize:13 }}>⚾</span>
-            <span style={{ fontFamily:mono, fontSize:9, color:C.green, letterSpacing:1 }}>{pitcherName || 'No pitcher'}</span>
-            <span style={{ fontFamily:mono, fontSize:8, color:C.dim }}>·</span>
-            <span style={{ fontFamily:bebas, fontSize:14, color:C.gold }}>{gamePitches.length}</span>
-            <span style={{ fontFamily:mono, fontSize:7, color:C.dim, letterSpacing:1 }}>P</span>
-          </div>
-          {/* COUNT — always visible */}
-          <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
-            <span style={{ fontFamily:bebas, fontSize:30, color:C.gold, lineHeight:1 }}>{balls}-{strikes}</span>
-            <span style={{ fontFamily:mono, fontSize:7, color:C.dim, letterSpacing:1 }}>COUNT</span>
-          </div>
-        </div>
-
-        {/* Row 2: Batter info */}
-        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 10px' }}>
-          <span style={{ fontFamily:bebas, fontSize:20, color:C.gold, flexShrink:0, minWidth:32 }}>
-            #{currentBatter?.jersey || '—'}
-          </span>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:14, fontWeight:600, color: currentBatter ? C.pri : C.dim, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-              {currentBatter?.name || 'Go to GAME tab → select batter'}
-            </div>
-            <div style={{ fontFamily:mono, fontSize:8, color:C.sec, letterSpacing:1 }}>
-              {currentBatter
-                ? `${(currentBatter.batter_type||'UNKNOWN').toUpperCase()} · ${paPitches.length}P THIS PA`
-                : 'No batter selected'}
-            </div>
-          </div>
-          {/* Today's stat line inline */}
-          {currentBatter && batterStats && batterStats.paToday > 0 && (
-            <div style={{ textAlign:'right', flexShrink:0 }}>
-              <div style={{ fontFamily:bebas, fontSize:18, color:C.pri, lineHeight:1 }}>
-                {batterStats.hits}-{batterStats.abs}
+      {/* ── HITTER CARD ── */}
+      {(() => {
+        const bt = (currentBatter?.batter_type || 'unknown').toLowerCase()
+        const typeColor = bt==='power' ? C.red : bt==='contact' ? C.cyan : bt==='slapper' ? C.green : C.sec
+        const hasStats = currentBatter && batterStats && batterStats.paToday > 0
+        return (
+          <div style={{ background:C.panel, borderRadius:8, border:`1px solid ${C.border}`, overflow:'hidden' }}>
+            {/* Hitter main row */}
+            <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px' }}>
+              {/* Jersey + type color bar */}
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2, flexShrink:0 }}>
+                <div style={{ width:4, height:32, borderRadius:2, background:typeColor }}/>
+                <span style={{ fontFamily:bebas, fontSize:11, color:typeColor, letterSpacing:1 }}>
+                  {bt==='power'?'PWR':bt==='contact'?'CON':bt==='slapper'?'SLP':'—'}
+                </span>
               </div>
-              <div style={{ display:'flex', gap:5, justifyContent:'flex-end', marginTop:1 }}>
-                {batterStats.strikeouts > 0 && <span style={{ fontFamily:mono, fontSize:8, color:C.red }}>{batterStats.strikeouts}K</span>}
-                {batterStats.walks > 0 && <span style={{ fontFamily:mono, fontSize:8, color:C.cyan }}>{batterStats.walks}BB</span>}
+              {/* Name + meta */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'baseline', gap:8 }}>
+                  <span style={{ fontFamily:bebas, fontSize:16, color:C.gold }}>{currentBatter ? `#${currentBatter.jersey}` : '—'}</span>
+                  <span style={{ fontSize:16, fontWeight:700, color: currentBatter ? C.pri : C.dim, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                    {currentBatter?.name || 'Select batter in GAME tab'}
+                  </span>
+                </div>
+                {/* Stat line */}
+                {hasStats ? (
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:2 }}>
+                    <span style={{ fontFamily:bebas, fontSize:18, color:C.pri, letterSpacing:1 }}>
+                      {batterStats.hits}-{batterStats.abs}
+                    </span>
+                    {batterStats.strikeouts > 0 && (
+                      <span style={{ fontFamily:mono, fontSize:9, color:C.red, background:'rgba(255,77,106,0.12)', padding:'1px 6px', borderRadius:4 }}>
+                        {batterStats.strikeouts}K
+                      </span>
+                    )}
+                    {batterStats.walks > 0 && (
+                      <span style={{ fontFamily:mono, fontSize:9, color:C.cyan, background:'rgba(0,212,255,0.1)', padding:'1px 6px', borderRadius:4 }}>
+                        {batterStats.walks}BB
+                      </span>
+                    )}
+                    <span style={{ fontFamily:mono, fontSize:8, color:C.dim }}>{batterStats.paToday}PA</span>
+                  </div>
+                ) : (
+                  <div style={{ fontFamily:mono, fontSize:8, color:C.dim, marginTop:2, letterSpacing:1 }}>
+                    {currentBatter ? `${bt.toUpperCase()} · FIRST PA` : 'No batter selected'}
+                  </div>
+                )}
+              </div>
+              {/* COUNT — right side, always big */}
+              <div style={{ textAlign:'center', flexShrink:0, background:'rgba(245,166,35,0.07)', border:`1px solid rgba(245,166,35,0.2)`, borderRadius:6, padding:'4px 10px' }}>
+                <div style={{ fontFamily:bebas, fontSize:34, color:C.gold, lineHeight:1, letterSpacing:2 }}>{balls}-{strikes}</div>
+                <div style={{ fontFamily:mono, fontSize:7, color:C.dim, letterSpacing:2 }}>B · S</div>
               </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )
+      })()}
 
       {/* Game state bar — outs + runners + inning */}
       <div style={{

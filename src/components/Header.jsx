@@ -1,6 +1,12 @@
 import styles from './Header.module.css'
 
-export default function Header({ ourName, oppName, ourRuns, oppRuns, inning, topBottom, onScoreChange, onInningChange, pitcherName, pitchers, onPitcherChange }) {
+export default function Header({ ourName, oppName, ourRuns, oppRuns, inning, topBottom, onScoreChange, onInningChange, pitcherName, pitchers, onPitcherChange, pitchCount }) {
+  // Format pitcher as "A. Groover"
+  const pitcherShort = pitcherName ? (() => {
+    const parts = pitcherName.trim().split(' ')
+    if (parts.length === 1) return parts[0]
+    return parts[0][0] + '. ' + parts.slice(1).join(' ')
+  })() : null
   return (
     <header className={styles.header}>
       {/* Logo */}
@@ -16,7 +22,7 @@ export default function Header({ ourName, oppName, ourRuns, oppRuns, inning, top
         <div className={styles.title}>Pitch Intelligence Command Center</div>
       </div>
 
-      {/* Pitcher display */}
+      {/* Pitcher — desktop full, mobile compact */}
       {pitcherName && (
         <div className={styles.pitcherWrap}>
           {pitchers?.length > 1 ? (
@@ -32,7 +38,13 @@ export default function Header({ ourName, oppName, ourRuns, oppRuns, inning, top
           ) : (
             <div className={styles.pitcherBadge}>
               <span className={styles.pitcherIcon}>⚾</span>
-              <span className={styles.pitcherNameText}>{pitcherName}</span>
+              <span className={styles.pitcherNameText}>
+                <span className={styles.pitcherNameFull}>{pitcherName}</span>
+                <span className={styles.pitcherNameShort}>{pitcherShort}</span>
+              </span>
+              {pitchCount > 0 && (
+                <span className={styles.pitchCountBadge}>{pitchCount}P</span>
+              )}
             </div>
           )}
         </div>
