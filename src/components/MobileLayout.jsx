@@ -60,57 +60,53 @@ function PitchTab({
   return (
     <div style={{ flex:1, overflow:'auto', padding:'10px 12px', display:'flex', flexDirection:'column', gap:10 }}>
 
-      {/* Batter card — always shown, placeholder if no batter selected */}
+      {/* ── Command strip: pitcher + count + batter all in one compact row ── */}
       <div style={{ background:C.panel, borderRadius:6, border:`1px solid ${C.border}`, overflow:'hidden' }}>
-        {/* Pitcher row */}
-        {pitcherName && (
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'5px 10px', background:'rgba(0,229,160,0.06)', borderBottom:`1px solid rgba(0,229,160,0.15)` }}>
-            <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-              <span style={{ fontSize:11 }}>⚾</span>
-              <span style={{ fontFamily:mono, fontSize:8, color:C.green, letterSpacing:1 }}>{pitcherName}</span>
-            </div>
-            <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-              <span style={{ fontFamily:bebas, fontSize:16, color:C.gold, lineHeight:1 }}>{gamePitches.length}</span>
-              <span style={{ fontFamily:mono, fontSize:7, color:C.dim, letterSpacing:1 }}>PITCHES</span>
-            </div>
-          </div>
-        )}
 
-        {/* Main batter row */}
-        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px' }}>
-          <span style={{ fontFamily:bebas, fontSize:22, color:C.gold, flexShrink:0 }}>
+        {/* Row 1: Pitcher left | Count center-right */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 10px', background:'rgba(0,229,160,0.05)', borderBottom:`1px solid ${C.border}` }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <span style={{ fontSize:13 }}>⚾</span>
+            <span style={{ fontFamily:mono, fontSize:9, color:C.green, letterSpacing:1 }}>{pitcherName || 'No pitcher'}</span>
+            <span style={{ fontFamily:mono, fontSize:8, color:C.dim }}>·</span>
+            <span style={{ fontFamily:bebas, fontSize:14, color:C.gold }}>{gamePitches.length}</span>
+            <span style={{ fontFamily:mono, fontSize:7, color:C.dim, letterSpacing:1 }}>P</span>
+          </div>
+          {/* COUNT — always visible */}
+          <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
+            <span style={{ fontFamily:bebas, fontSize:30, color:C.gold, lineHeight:1 }}>{balls}-{strikes}</span>
+            <span style={{ fontFamily:mono, fontSize:7, color:C.dim, letterSpacing:1 }}>COUNT</span>
+          </div>
+        </div>
+
+        {/* Row 2: Batter info */}
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 10px' }}>
+          <span style={{ fontFamily:bebas, fontSize:20, color:C.gold, flexShrink:0, minWidth:32 }}>
             #{currentBatter?.jersey || '—'}
           </span>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize:14, fontWeight:600, color: currentBatter ? C.pri : C.dim, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-              {currentBatter?.name || 'SELECT BATTER IN GAME TAB'}
+              {currentBatter?.name || 'Go to GAME tab → select batter'}
             </div>
             <div style={{ fontFamily:mono, fontSize:8, color:C.sec, letterSpacing:1 }}>
-              {currentBatter ? `${(currentBatter.batter_type||'unknown').toUpperCase()} · ${paPitches.length}P THIS PA` : 'No batter selected'}
+              {currentBatter
+                ? `${(currentBatter.batter_type||'UNKNOWN').toUpperCase()} · ${paPitches.length}P THIS PA`
+                : 'No batter selected'}
             </div>
           </div>
-          <div style={{ textAlign:'right', flexShrink:0 }}>
-            <div style={{ fontFamily:bebas, fontSize:28, color:C.gold, letterSpacing:2, lineHeight:1 }}>{balls}-{strikes}</div>
-            <div style={{ fontFamily:mono, fontSize:7, color:C.dim, letterSpacing:1 }}>COUNT</div>
-          </div>
+          {/* Today's stat line inline */}
+          {currentBatter && batterStats && batterStats.paToday > 0 && (
+            <div style={{ textAlign:'right', flexShrink:0 }}>
+              <div style={{ fontFamily:bebas, fontSize:18, color:C.pri, lineHeight:1 }}>
+                {batterStats.hits}-{batterStats.abs}
+              </div>
+              <div style={{ display:'flex', gap:5, justifyContent:'flex-end', marginTop:1 }}>
+                {batterStats.strikeouts > 0 && <span style={{ fontFamily:mono, fontSize:8, color:C.red }}>{batterStats.strikeouts}K</span>}
+                {batterStats.walks > 0 && <span style={{ fontFamily:mono, fontSize:8, color:C.cyan }}>{batterStats.walks}BB</span>}
+              </div>
+            </div>
+          )}
         </div>
-
-        {/* Stat line: today's performance */}
-        {currentBatter && batterStats && batterStats.paToday > 0 && (
-          <div style={{ display:'flex', alignItems:'center', borderTop:`1px solid ${C.border}`, padding:'5px 10px', background:'rgba(0,0,0,0.2)' }}>
-            <span style={{ fontFamily:mono, fontSize:8, color:C.dim, letterSpacing:1, marginRight:10 }}>TODAY</span>
-            <span style={{ fontFamily:bebas, fontSize:16, color:C.pri, letterSpacing:1, marginRight:8 }}>
-              {batterStats.hits}-{batterStats.abs}
-            </span>
-            {batterStats.strikeouts > 0 && (
-              <span style={{ fontFamily:mono, fontSize:9, color:C.red, marginRight:8 }}>{batterStats.strikeouts}K</span>
-            )}
-            {batterStats.walks > 0 && (
-              <span style={{ fontFamily:mono, fontSize:9, color:C.cyan, marginRight:8 }}>{batterStats.walks}BB</span>
-            )}
-            <span style={{ fontFamily:mono, fontSize:8, color:C.dim, marginLeft:'auto' }}>{batterStats.paToday} PA</span>
-          </div>
-        )}
       </div>
 
       {/* Game state bar — outs + runners + inning */}
