@@ -514,7 +514,7 @@ export default function MobileLayout({
   const [tab, setTab] = useState('pitch')
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:C.void, overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0, background:C.void, overflow:'hidden', position:'relative' }}>
 
       {/* Content area */}
       <div style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
@@ -569,13 +569,13 @@ export default function MobileLayout({
       {/* Bottom tab bar */}
       <div style={{
         display:'grid', gridTemplateColumns:'repeat(4,1fr)',
-        background:'#0C1C2E',
+        background:'#0A1929',
         borderTop:'3px solid #F5A623',
-        boxShadow:'0 -4px 20px rgba(0,0,0,0.7)',
+        boxShadow:'0 -6px 24px rgba(0,0,0,0.8)',
         flexShrink:0,
-        paddingBottom:'max(env(safe-area-inset-bottom, 0px), 8px)',
-        minHeight:68,
-        position:'relative', zIndex:50,
+        paddingBottom:'max(env(safe-area-inset-bottom, 12px), 12px)',
+        minHeight:76,
+        position:'relative', zIndex:100,
       }}>
         {TABS.map(t => {
           const isActive = tab === t.id
@@ -584,20 +584,22 @@ export default function MobileLayout({
               key={t.id}
               onClick={() => setTab(t.id)}
               style={{
-                padding:'10px 4px 6px',
+                padding:'12px 4px 8px',
                 border:'none',
-                background: isActive ? 'rgba(245,166,35,0.1)' : 'transparent',
-                display:'flex', flexDirection:'column', alignItems:'center', gap:4,
+                background: isActive ? 'rgba(245,166,35,0.12)' : 'rgba(255,255,255,0.02)',
+                display:'flex', flexDirection:'column', alignItems:'center', gap:5,
                 cursor:'pointer',
-                borderBottom:`3px solid ${isActive ? C.gold : 'transparent'}`,
+                borderTop:`3px solid ${isActive ? C.gold : 'transparent'}`,
                 transition:'all 0.15s',
                 WebkitTapHighlightColor:'transparent',
+                outline:'none',
               }}
             >
-              <span style={{ fontSize:24, lineHeight:1 }}>{t.icon}</span>
+              <span style={{ fontSize:26, lineHeight:1 }}>{t.icon}</span>
               <span style={{
-                fontFamily:mono, fontSize:10, letterSpacing:1.5,
+                fontFamily:mono, fontSize:11, letterSpacing:2,
                 color: isActive ? C.gold : '#7BACC8',
+                fontWeight: isActive ? '600' : '400',
               }}>
                 {t.label}
               </span>

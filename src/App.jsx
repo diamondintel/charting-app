@@ -314,7 +314,7 @@ export default function App() {
   const [showScorebook, setShowScorebook] = useState(false)
   const [showHalfInningModal, setShowHalfInningModal] = useState(null)
   const windowWidth = useWindowWidth()
-  const isMobile = windowWidth < 1024
+  const isMobile = windowWidth < 1280
 
   // ── Game state ───────────────────────────────────────────────────────────────
   const [balls, setBalls]     = useState(0)
@@ -724,7 +724,7 @@ export default function App() {
   // ── Mobile layout (< 1024px) ──────────────────────────────────────────────────
   if (isMobile) {
     return (
-      <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden' }}>
+      <div style={{ display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden' }}>
         <Header
           ourName={session.team.name}
           oppName={session.game.opponent}
