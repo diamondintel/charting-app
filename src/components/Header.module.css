@@ -341,3 +341,30 @@
     max-width: 120px;
   }
 }
+
+/* ── Pitcher name stack (name + pitch count vertical) ───────────────────── */
+.pitcherNameStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.1;
+}
+
+.pitchCountLine {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: var(--gold);
+  letter-spacing: 1px;
+}
+
+@media (max-width: 1279px) {
+  .pitcherBadge {
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+  }
+  .pitchCountLine {
+    font-size: 7px;
+    letter-spacing: 0.5px;
+  }
+}

@@ -38,13 +38,15 @@ export default function Header({ ourName, oppName, ourRuns, oppRuns, inning, top
           ) : (
             <div className={styles.pitcherBadge}>
               <span className={styles.pitcherIcon}>⚾</span>
-              <span className={styles.pitcherNameText}>
-                <span className={styles.pitcherNameFull}>{pitcherName}</span>
-                <span className={styles.pitcherNameShort}>{pitcherShort}</span>
-              </span>
-              {pitchCount > 0 && (
-                <span className={styles.pitchCountBadge}>{pitchCount}P</span>
-              )}
+              <div className={styles.pitcherNameStack}>
+                <span className={styles.pitcherNameText}>
+                  <span className={styles.pitcherNameFull}>{pitcherName}</span>
+                  <span className={styles.pitcherNameShort}>{pitcherShort}</span>
+                </span>
+                <span className={styles.pitchCountLine}>
+                  {pitchCount > 0 ? `${pitchCount} PITCHES` : '0 PITCHES'}
+                </span>
+              </div>
             </div>
           )}
         </div>

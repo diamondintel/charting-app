@@ -100,25 +100,48 @@ function PitchTab({
                 </span>
               </div>
               <div style={{ flex:1, minWidth:0 }}>
+                {/* Name row */}
                 <div style={{ display:'flex', alignItems:'baseline', gap:8 }}>
                   <span style={{ fontFamily:bebas, fontSize:16, color:C.gold }}>{currentBatter ? `#${currentBatter.jersey}` : '—'}</span>
                   <span style={{ fontSize:16, fontWeight:700, color: currentBatter ? C.pri : C.dim, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                     {currentBatter?.name || 'Select batter in GAME tab'}
                   </span>
                 </div>
-                {hasStats ? (
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:2 }}>
-                    <span style={{ fontFamily:bebas, fontSize:18, color:C.pri, letterSpacing:1 }}>{batterStats.hits}-{batterStats.abs}</span>
-                    {batterStats.strikeouts > 0 && <span style={{ fontFamily:mono, fontSize:9, color:C.red, background:'rgba(255,77,106,0.12)', padding:'1px 6px', borderRadius:4 }}>{batterStats.strikeouts}K</span>}
-                    {batterStats.walks > 0 && <span style={{ fontFamily:mono, fontSize:9, color:C.cyan, background:'rgba(0,212,255,0.1)', padding:'1px 6px', borderRadius:4 }}>{batterStats.walks}BB</span>}
-                    <span style={{ fontFamily:mono, fontSize:8, color:C.dim }}>{batterStats.paToday}PA</span>
-                  </div>
-                ) : (
-                  <div style={{ fontFamily:mono, fontSize:8, color:C.dim, marginTop:2, letterSpacing:1 }}>
-                    {currentBatter ? `${bt.toUpperCase()} · FIRST PA` : 'No batter selected'}
-                  </div>
-                )}
+                {/* Stats + AI rec row */}
+                <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3, flexWrap:'wrap' }}>
+                  {hasStats ? (
+                    <>
+                      <span style={{ fontFamily:bebas, fontSize:18, color:C.pri, letterSpacing:1 }}>{batterStats.hits}-{batterStats.abs}</span>
+                      {batterStats.strikeouts > 0 && <span style={{ fontFamily:mono, fontSize:9, color:C.red, background:'rgba(255,77,106,0.12)', padding:'1px 6px', borderRadius:4 }}>{batterStats.strikeouts}K</span>}
+                      {batterStats.walks > 0 && <span style={{ fontFamily:mono, fontSize:9, color:C.cyan, background:'rgba(0,212,255,0.1)', padding:'1px 6px', borderRadius:4 }}>{batterStats.walks}BB</span>}
+                      <span style={{ fontFamily:mono, fontSize:8, color:C.dim }}>{batterStats.paToday}PA</span>
+                    </>
+                  ) : (
+                    <span style={{ fontFamily:mono, fontSize:8, color:C.dim, letterSpacing:1 }}>
+                      {currentBatter ? `${bt.toUpperCase()} · FIRST PA` : 'No batter selected'}
+                    </span>
+                  )}
+                  {/* AI top recommendation */}
+                  {recommendations?.[0] && (
+                    <div style={{
+                      display:'flex', alignItems:'center', gap:4,
+                      marginLeft: hasStats ? 4 : 0,
+                      background:'rgba(245,166,35,0.1)',
+                      border:'1px solid rgba(245,166,35,0.35)',
+                      borderRadius:5, padding:'2px 8px',
+                    }}>
+                      <span style={{ fontFamily:mono, fontSize:7, color:C.gold, letterSpacing:1 }}>★ AI</span>
+                      <span style={{ fontFamily:bebas, fontSize:14, color:C.gold, letterSpacing:1 }}>
+                        {recommendations[0].pitch}
+                      </span>
+                      <span style={{ fontFamily:mono, fontSize:7, color:C.sec }}>
+                        {recommendations[0].zone || ''} · {recommendations[0].confidence}%
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
+              {/* COUNT */}
               <div style={{ textAlign:'center', flexShrink:0, background:'rgba(245,166,35,0.07)', border:`1px solid rgba(245,166,35,0.2)`, borderRadius:6, padding:'4px 10px' }}>
                 <div style={{ fontFamily:bebas, fontSize:34, color:C.gold, lineHeight:1, letterSpacing:2 }}>{balls}-{strikes}</div>
                 <div style={{ fontFamily:mono, fontSize:7, color:C.dim, letterSpacing:2 }}>B · S</div>
