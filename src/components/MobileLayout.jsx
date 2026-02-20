@@ -49,6 +49,7 @@ function PitchTab({
   inPlayDetail, onInPlayChange, onRecord, onUndo, canRecord, canUndo,
   balls, strikes, paPitches, currentBatter,
   outs, on1b, on2b, on3b, inning, topBottom,
+  batterStats, pitcherName, gamePitches,
 }) {
   const aiRecZones = new Set(recommendations.map(r => r.zone))
   const ZONE_ROWS = ['HIGH','MID','LOW']
@@ -59,20 +60,56 @@ function PitchTab({
   return (
     <div style={{ flex:1, overflow:'auto', padding:'10px 12px', display:'flex', flexDirection:'column', gap:10 }}>
 
-      {/* Batter strip */}
+      {/* Batter strip + stat line */}
       {currentBatter && (
-        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', background:C.panel, borderRadius:6, border:`1px solid ${C.border}` }}>
-          <span style={{ fontFamily:bebas, fontSize:22, color:C.gold }}>
-            #{currentBatter.jersey || '?'}
-          </span>
-          <div>
-            <div style={{ fontSize:14, fontWeight:600, color:C.pri }}>{currentBatter.name}</div>
-            <div style={{ fontFamily:mono, fontSize:8, color:C.sec, letterSpacing:1 }}>
-              {(currentBatter.batter_type||'unknown').toUpperCase()} · {paPitches.length}P THIS PA
+        <div style={{ background:C.panel, borderRadius:6, border:`1px solid ${C.border}`, overflow:'hidden' }}>
+          {/* Main batter row */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px' }}>
+            <span style={{ fontFamily:bebas, fontSize:22, color:C.gold, flexShrink:0 }}>
+              #{currentBatter.jersey || '?'}
+            </span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:14, fontWeight:600, color:C.pri, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{currentBatter.name}</div>
+              <div style={{ fontFamily:mono, fontSize:8, color:C.sec, letterSpacing:1 }}>
+                {(currentBatter.batter_type||'unknown').toUpperCase()} · {paPitches.length}P THIS PA
+              </div>
+            </div>
+            <div style={{ textAlign:'right', flexShrink:0 }}>
+              <div style={{ fontFamily:bebas, fontSize:28, color:C.gold, letterSpacing:2, lineHeight:1 }}>{balls}-{strikes}</div>
+              <div style={{ fontFamily:mono, fontSize:7, color:C.dim, letterSpacing:1 }}>COUNT</div>
             </div>
           </div>
-          <div style={{ marginLeft:'auto', fontFamily:bebas, fontSize:28, color:C.gold, letterSpacing:2 }}>
-            {balls}-{strikes}
+          {/* Stat line: today's performance */}
+          {batterStats && batterStats.paToday > 0 && (
+            <div style={{ display:'flex', alignItems:'center', gap:0, borderTop:`1px solid ${C.border}`, padding:'5px 10px', background:'rgba(0,0,0,0.2)' }}>
+              <span style={{ fontFamily:mono, fontSize:8, color:C.dim, letterSpacing:1, marginRight:10 }}>TODAY</span>
+              <span style={{ fontFamily:bebas, fontSize:16, color:C.pri, letterSpacing:1, marginRight:6 }}>
+                {batterStats.hits}-{batterStats.abs}
+              </span>
+              {batterStats.strikeouts > 0 && (
+                <span style={{ fontFamily:mono, fontSize:9, color:C.red, marginRight:6 }}>{batterStats.strikeouts}K</span>
+              )}
+              {batterStats.walks > 0 && (
+                <span style={{ fontFamily:mono, fontSize:9, color:C.cyan, marginRight:6 }}>{batterStats.walks}BB</span>
+              )}
+              <span style={{ fontFamily:mono, fontSize:8, color:C.dim, marginLeft:'auto' }}>{batterStats.paToday} PA</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pitcher + pitch count strip */}
+      {pitcherName && (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 10px', background:'rgba(0,229,160,0.05)', borderRadius:6, border:`1px solid rgba(0,229,160,0.15)` }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <span style={{ fontSize:12 }}>⚾</span>
+            <span style={{ fontFamily:mono, fontSize:9, color:C.green, letterSpacing:1 }}>{pitcherName}</span>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ textAlign:'center' }}>
+              <div style={{ fontFamily:bebas, fontSize:18, color:C.gold, lineHeight:1 }}>{gamePitches.length}</div>
+              <div style={{ fontFamily:mono, fontSize:6, color:C.dim, letterSpacing:1 }}>PITCHES</div>
+            </div>
           </div>
         </div>
       )}
@@ -574,6 +611,7 @@ export default function MobileLayout({
             paPitches={paPitches} currentBatter={currentBatter}
             outs={outs} on1b={on1b} on2b={on2b} on3b={on3b}
             inning={inning} topBottom={topBottom}
+            batterStats={batterStats} pitcherName={pitcherName} gamePitches={gamePitches}
           />
         )}
         {tab === 'ai' && (

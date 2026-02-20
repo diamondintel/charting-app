@@ -411,12 +411,21 @@ export default function App() {
     { pci, lm, prr, gamePitches, batterName: currentBatter?.name }
   )
 
-  // Batter stats today
+  // Batter stats today — full line: AB, H, K, BB
   const batterStats = currentBatter ? (() => {
-    const batterPAs = allPAs.filter(p => p.batter_name === currentBatter.name)
-    const batterPitches = gamePitches.filter(p => p.batter_name === currentBatter.name)
-    const strikeouts = batterPAs.filter(p => p.pa_result === 'CK' || p.pa_result === 'SK').length
-    return { paToday: batterPAs.length, strikeouts }
+    const batterPAs   = allPAs.filter(p => p.batter_name === currentBatter.name)
+    const HIT_SET     = new Set(['Single','Double','Triple','Home Run'])
+    const OUT_SET     = new Set(['CK','SK','IP'])  // AB outcomes (not walk/HBP)
+    const hits        = gamePitches.filter(p =>
+      p.batter_name === currentBatter.name &&
+      p.outcome_basic === 'IP' &&
+      HIT_SET.has(p.outcome_inplay)
+    ).length
+    const strikeouts  = batterPAs.filter(p => ['CK','SK'].includes(p.pa_result)).length
+    const walks       = batterPAs.filter(p => p.pa_result === 'B').length
+    // AB = PAs minus walks, HBP
+    const abs         = batterPAs.filter(p => !['B','HBP'].includes(p.pa_result)).length
+    return { paToday: batterPAs.length, abs, hits, strikeouts, walks }
   })() : null
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -580,24 +589,26 @@ export default function App() {
         // ── Baserunner advancement ──────────────────────────────────────
         const result = inPlayDetail.outcome_inplay
         if (isInPlay) {
+          // Capture current base state before any mutations
+          const was1b = on1b, was2b = on2b, was3b = on3b
           if (result === 'Home Run') {
-            const runsScored = 1 + (on1b ? 1 : 0) + (on2b ? 1 : 0) + (on3b ? 1 : 0)
+            const runsScored = 1 + (was1b ? 1 : 0) + (was2b ? 1 : 0) + (was3b ? 1 : 0)
             setOppRuns(r => r + runsScored)
             setOn1b(false); setOn2b(false); setOn3b(false)
           } else if (result === 'Triple') {
-            const runsScored = (on1b ? 1 : 0) + (on2b ? 1 : 0) + (on3b ? 1 : 0)
+            const runsScored = (was1b ? 1 : 0) + (was2b ? 1 : 0) + (was3b ? 1 : 0)
             setOppRuns(r => r + runsScored)
             setOn1b(false); setOn2b(false); setOn3b(true)
           } else if (result === 'Double') {
-            const runsScored = (on2b ? 1 : 0) + (on3b ? 1 : 0)
+            const runsScored = (was2b ? 1 : 0) + (was3b ? 1 : 0)
             setOppRuns(r => r + runsScored)
-            setOn1b(false); setOn2b(true); setOn3b(on1b)
+            setOn1b(false); setOn2b(true); setOn3b(was1b)
           } else if (result === 'Single') {
-            const runsScored = (on3b ? 1 : 0)
+            const runsScored = (was3b ? 1 : 0)
             setOppRuns(r => r + runsScored)
-            setOn3b(on2b); setOn2b(false); setOn1b(true)
+            setOn1b(true); setOn2b(was1b); setOn3b(was2b)
           } else if (result === 'Sac Fly') {
-            if (on3b) { setOppRuns(r => r + 1); setOn3b(false) }
+            if (was3b) { setOppRuns(r => r + 1); setOn3b(false) }
           } else if (result === 'Fielder Choice') {
             setOn1b(true)
           } else if (result === 'Error') {
@@ -607,9 +618,11 @@ export default function App() {
             setOppRuns(r => r + inPlayDetail.runs_scored)
           }
         } else if (isWalk || isHBP) {
-          if (on1b && on2b && on3b) { setOppRuns(r => r + 1) }
-          else if (on1b && on2b) { setOn3b(true) }
-          else if (on1b) { setOn2b(true) }
+          // Walk/HBP — force runners with captured state
+          const was1b = on1b, was2b = on2b, was3b = on3b
+          if (was1b && was2b && was3b) { setOppRuns(r => r + 1); }
+          setOn3b(was1b && was2b ? true : was3b)
+          setOn2b(was1b ? true : was2b)
           setOn1b(true)
         }
 
