@@ -7,6 +7,7 @@ import RightPanel from './components/RightPanel'
 import BottomConsole from './components/BottomConsole'
 import RosterTab from './components/RosterTab'
 import Scorebook from './components/Scorebook'
+import MobileLayout from './components/MobileLayout'
 import {
   getTeams, getGames, createGame,
   getOpponentLineup, getPlayers, getPitchers,
@@ -22,6 +23,17 @@ import {
 } from './lib/analytics'
 
 const DEFAULT_ARSENAL = ['Fastball', 'Changeup', 'Drop']
+
+// ─── Responsive hook ──────────────────────────────────────────────────────────
+function useWindowWidth() {
+  const [width, setWidth] = useState(window.innerWidth)
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  return width
+}
 
 // ─── Setup Screen ─────────────────────────────────────────────────────────────
 function SetupScreen({ onGameReady }) {
@@ -230,6 +242,70 @@ function SetupScreen({ onGameReady }) {
   )
 }
 
+// ─── Half Inning Modal ────────────────────────────────────────────────────────
+function HalfInningModal({ modal, topBottom, ourLineup, onChoice }) {
+  if (!modal) return null
+  return (
+    <div style={{
+      position:'fixed', inset:0, background:'rgba(5,12,20,0.88)',
+      backdropFilter:'blur(4px)', zIndex:300,
+      display:'flex', alignItems:'center', justifyContent:'center',
+    }}>
+      <div style={{
+        background:'#0C1C2E', border:'1px solid #1A3550',
+        borderRadius:12, padding:32, width:'min(420px, 90vw)', textAlign:'center',
+      }}>
+        <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:10, letterSpacing:3, color:'#7BACC8', marginBottom:8 }}>
+          {topBottom === 'top' ? `END OF TOP ${modal.inning}` : `END OF INNING ${modal.inning}`}
+        </div>
+        <div style={{ fontFamily:"'Bebas Neue','Rajdhani',sans-serif", fontSize:40, color:'#F5A623', letterSpacing:4, marginBottom:8 }}>
+          3 OUTS
+        </div>
+        <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:13, color:'#7BACC8', marginBottom:28, lineHeight:1.5 }}>
+          {topBottom === 'top'
+            ? `Inning ${modal.inning} top half complete. What's next?`
+            : `Inning ${modal.inning} complete. Advancing to inning ${modal.nextInning}.`}
+        </div>
+        {topBottom === 'top' ? (
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            <button onClick={() => onChoice('bottom')} style={{
+              background:'rgba(0,212,255,0.12)', border:'1px solid rgba(0,212,255,0.35)',
+              color:'#00D4FF', borderRadius:8, padding:'14px 0', cursor:'pointer',
+              fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:16, letterSpacing:2,
+            }}>
+              ⬇ CHART BOTTOM {modal.inning}
+              <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'#7BACC8', marginTop:2, fontWeight:400, letterSpacing:1 }}>
+                {ourLineup.length > 0 ? `Loads Lady Hawks lineup (${ourLineup.length} players)` : 'Add your roster in the Roster tab first'}
+              </div>
+            </button>
+            <button onClick={() => onChoice('skip')} style={{
+              background:'rgba(245,166,35,0.12)', border:'1px solid rgba(245,166,35,0.35)',
+              color:'#F5A623', borderRadius:8, padding:'14px 0', cursor:'pointer',
+              fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:16, letterSpacing:2,
+            }}>
+              → TOP OF INNING {modal.inning + 1}
+              <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'#7BACC8', marginTop:2, fontWeight:400, letterSpacing:1 }}>
+                Skip to next opponent at-bat (default)
+              </div>
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => onChoice('next')} style={{
+            background:'rgba(245,166,35,0.12)', border:'1px solid rgba(245,166,35,0.35)',
+            color:'#F5A623', borderRadius:8, padding:'14px 0', width:'100%', cursor:'pointer',
+            fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:16, letterSpacing:2,
+          }}>
+            → TOP OF INNING {modal.nextInning}
+            <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'#7BACC8', marginTop:2, fontWeight:400, letterSpacing:1 }}>
+              Continue charting opponent
+            </div>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [session, setSession] = useState(null) // { team, game }
@@ -237,6 +313,8 @@ export default function App() {
   const [activeView, setActiveView] = useState('chart')  // 'chart' | 'scorebook'
   const [showScorebook, setShowScorebook] = useState(false)
   const [showHalfInningModal, setShowHalfInningModal] = useState(null)
+  const windowWidth = useWindowWidth()
+  const isMobile = windowWidth < 1024
 
   // ── Game state ───────────────────────────────────────────────────────────────
   const [balls, setBalls]     = useState(0)
@@ -617,6 +695,57 @@ export default function App() {
   const canRecord = !!(selectedZone && selectedPitch && selectedOutcome)
   const canUndo   = paPitches.length > 0
 
+  // ── Shared props bundle for both layouts ─────────────────────────────────────
+  const sharedProps = {
+    balls, strikes, outs, inning, topBottom,
+    on1b, on2b, on3b, onToggleBase: handleToggleBase,
+    ourRuns, oppRuns, onScoreChange: handleScoreChange,
+    onInningChange: () => setShowHalfInningModal({ inning, nextHalf: topBottom === 'top' ? 'bottom' : 'top', nextInning: topBottom === 'bottom' ? inning + 1 : inning }),
+    lineup, lineupPos, onSelectBatter: handleSelectBatter,
+    manualBatterName, onManualBatterName: setManualBatterName,
+    currentBatter, batterStats,
+    pitchers, pitcherName, onPitcherChange: handlePitcherChange,
+    selectedZone, onSelectZone: setSelectedZone,
+    selectedPitch, onSelectPitch: setSelectedPitch,
+    arsenal, recommendations,
+    selectedOutcome, onSelectOutcome: setSelectedOutcome,
+    inPlayDetail, onInPlayChange: setInPlayDetail,
+    onRecord: handleRecord, onUndo: handleUndo,
+    canRecord, canUndo,
+    paPitches, onNewPA: handleNewPA,
+    signals, pci, reverseSwitch, onApplyRec: handleApplyRec,
+    onRoster: () => setShowRoster(true),
+    onScorebook: () => setActiveView('scorebook'),
+    gamePitches, session,
+    pitcher: pitchers.find(p => p.name === pitcherName) || null,
+    Scorebook,
+  }
+
+  // ── Mobile layout (< 1024px) ──────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden' }}>
+        <Header
+          ourName={session.team.name}
+          oppName={session.game.opponent}
+          ourRuns={ourRuns}
+          oppRuns={oppRuns}
+          inning={inning}
+          topBottom={topBottom}
+          onScoreChange={handleScoreChange}
+          onInningChange={() => setShowHalfInningModal({ inning, nextHalf: topBottom === 'top' ? 'bottom' : 'top', nextInning: topBottom === 'bottom' ? inning + 1 : inning })}
+          pitcherName={pitcherName}
+          pitchers={pitchers}
+          onPitcherChange={handlePitcherChange}
+        />
+        <MobileLayout {...sharedProps} />
+        {showRoster && <RosterTab session={session} onClose={handleRosterClose} />}
+        {showHalfInningModal && <HalfInningModal modal={showHalfInningModal} topBottom={topBottom} ourLineup={ourLineup} onChoice={handleHalfInning} />}
+      </div>
+    )
+  }
+
+  // ── Desktop layout (>= 1024px) ────────────────────────────────────────────────
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden' }}>
       <Header
@@ -721,89 +850,7 @@ export default function App() {
         />
       )}
 
-      {/* Half-inning transition modal */}
-      {showHalfInningModal && (
-        <div style={{
-          position:'fixed', inset:0, background:'rgba(5,12,20,0.88)',
-          backdropFilter:'blur(4px)', zIndex:300,
-          display:'flex', alignItems:'center', justifyContent:'center',
-        }}>
-          <div style={{
-            background:'#0C1C2E', border:'1px solid #1A3550',
-            borderRadius:12, padding:32, width:420, textAlign:'center',
-          }}>
-            {/* Inning title */}
-            <div style={{
-              fontFamily:"'Share Tech Mono', monospace",
-              fontSize:10, letterSpacing:3, color:'#7BACC8', marginBottom:8,
-            }}>
-              {topBottom === 'top' ? `END OF TOP ${showHalfInningModal.inning}` : `END OF INNING ${showHalfInningModal.inning}`}
-            </div>
-            <div style={{
-              fontFamily:"'Bebas Neue', sans-serif",
-              fontSize:40, color:'#F5A623', letterSpacing:4, marginBottom:8,
-            }}>
-              3 OUTS
-            </div>
-            <div style={{
-              fontFamily:"'DM Sans', sans-serif",
-              fontSize:13, color:'#7BACC8', marginBottom:28, lineHeight:1.5,
-            }}>
-              {topBottom === 'top'
-                ? `Inning ${showHalfInningModal.inning} top half complete. What's next?`
-                : `Inning ${showHalfInningModal.inning} complete. Advancing to inning ${showHalfInningModal.nextInning}.`
-              }
-            </div>
-
-            {topBottom === 'top' ? (
-              /* End of top — offer to chart bottom or skip to next inning */
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                <button
-                  onClick={() => handleHalfInning('bottom')}
-                  style={{
-                    background:'rgba(0,212,255,0.12)', border:'1px solid rgba(0,212,255,0.35)',
-                    color:'#00D4FF', borderRadius:8, padding:'14px 0', cursor:'pointer',
-                    fontFamily:"'Rajdhani', sans-serif", fontWeight:700, fontSize:16, letterSpacing:2,
-                  }}
-                >
-                  ⬇ CHART BOTTOM {showHalfInningModal.inning}
-                  <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, color:'#7BACC8', marginTop:2, fontWeight:400, letterSpacing:1 }}>
-                    {ourLineup.length > 0 ? `Loads Lady Hawks lineup (${ourLineup.length} players)` : 'Add your roster in the Roster tab first'}
-                  </div>
-                </button>
-                <button
-                  onClick={() => handleHalfInning('skip')}
-                  style={{
-                    background:'rgba(245,166,35,0.12)', border:'1px solid rgba(245,166,35,0.35)',
-                    color:'#F5A623', borderRadius:8, padding:'14px 0', cursor:'pointer',
-                    fontFamily:"'Rajdhani', sans-serif", fontWeight:700, fontSize:16, letterSpacing:2,
-                  }}
-                >
-                  → TOP OF INNING {showHalfInningModal.inning + 1}
-                  <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, color:'#7BACC8', marginTop:2, fontWeight:400, letterSpacing:1 }}>
-                    Skip to next opponent at-bat (default)
-                  </div>
-                </button>
-              </div>
-            ) : (
-              /* End of bottom — just advance to next inning */
-              <button
-                onClick={() => handleHalfInning('next')}
-                style={{
-                  background:'rgba(245,166,35,0.12)', border:'1px solid rgba(245,166,35,0.35)',
-                  color:'#F5A623', borderRadius:8, padding:'14px 0', width:'100%', cursor:'pointer',
-                  fontFamily:"'Rajdhani', sans-serif", fontWeight:700, fontSize:16, letterSpacing:2,
-                }}
-              >
-                → TOP OF INNING {showHalfInningModal.nextInning}
-                <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, color:'#7BACC8', marginTop:2, fontWeight:400, letterSpacing:1 }}>
-                  Continue charting opponent
-                </div>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      <HalfInningModal modal={showHalfInningModal} topBottom={topBottom} ourLineup={ourLineup} onChoice={handleHalfInning} />
 
       <BottomConsole
         selectedOutcome={selectedOutcome}
