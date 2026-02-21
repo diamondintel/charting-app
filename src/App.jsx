@@ -659,7 +659,9 @@ export default function App() {
       // Skip bottom — go to top of next inning, opponent bats
       setInning(m.nextInning || m.inning + 1)
       setTopBottom('top')
-      setLineup(oppLineup)
+      const { starters: skipStarters, bench: skipBench } = splitLineup(oppLineup, lineupMode)
+      setLineup(skipStarters)
+      setSubs(skipBench)
     } else if (choice === 'bottom') {
       // Chart bottom half — OUR team bats
       setTopBottom('bottom')
