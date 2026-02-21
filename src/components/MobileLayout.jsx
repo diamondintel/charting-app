@@ -458,15 +458,29 @@ function AITab({ recommendations, signals, pci, reverseSwitch, onApplyRec }) {
 }
 
 // ── GAME TAB ──────────────────────────────────────────────────────────────────
+// ── LINEUP MODE CONFIG ─────────────────────────────────────────────────────────
+const LINEUP_MODES = {
+  standard:    { label: 'Standard 9',         batters: 9,  desc: 'NFHS standard — 9 bat, 9 play defense' },
+  dp_flex:     { label: 'DP / Flex  (9 bat)', batters: 9,  desc: '10 on card, 9 bat — FLEX listed 10th, does not bat unless subbed for DP' },
+  eh:          { label: 'EH  (10 bat)',        batters: 10, desc: '10 bat, 9 play defense — EH is offense-only, placed anywhere in order' },
+  dp_flex_eh:  { label: 'DP / Flex + EH',     batters: 10, desc: '11 on card, 10 bat — FLEX listed last, does not bat unless subbed for DP' },
+  free_sub:    { label: 'Free Sub / Roster',  batters: 0,  desc: 'Full roster bats — pool play / recreational rule, batting order stays fixed' },
+}
+
 function GameTab({
   balls, strikes, outs, inning, topBottom,
   on1b, on2b, on3b, onToggleBase,
   ourRuns, oppRuns, onScoreChange,
   lineup, lineupPos, onSelectBatter, onNewPA,
+  lineupMode, onLineupModeChange,
   currentBatter, manualBatterName, onManualBatterName,
   batterStats, paPitches, onRoster, onPitcherChange, pitchers, pitcherName,
   onInningChange,
 }) {
+  const mode = LINEUP_MODES[lineupMode] || LINEUP_MODES.standard
+  const expectedBatters = mode.batters || lineup.length
+  const battingLineupSize = lineupMode === 'free_sub' ? lineup.length : expectedBatters
+  const flexSlot = lineupMode === 'dp_flex' ? 9 : lineupMode === 'dp_flex_eh' ? 10 : null
   return (
     <div style={{ flex:1, overflow:'auto', padding:'10px 12px', display:'flex', flexDirection:'column', gap:10 }}>
 
@@ -535,17 +549,67 @@ function GameTab({
         </div>
       </div>
 
+      {/* Lineup Mode Selector */}
+      <div style={{ padding:'10px 12px', background:C.panel, borderRadius:8, border:`1px solid ${C.border}` }}>
+        <div style={{ fontFamily:mono, fontSize:7, letterSpacing:2, color:C.dim, marginBottom:8 }}>LINEUP FORMAT</div>
+        <select
+          value={lineupMode}
+          onChange={e => onLineupModeChange(e.target.value)}
+          style={{ width:'100%', background:'#0A1929', border:`1px solid ${C.gold}`, color:C.gold, borderRadius:4, padding:'8px 10px', fontSize:12, fontFamily:mono, marginBottom:6, cursor:'pointer' }}
+        >
+          {Object.entries(LINEUP_MODES).map(([key, m]) => (
+            <option key={key} value={key}>{m.label}</option>
+          ))}
+        </select>
+        <div style={{ fontFamily:mono, fontSize:8, color:C.dim, lineHeight:1.4 }}>{mode.desc}</div>
+        {/* Batting order status */}
+        {lineup.length > 0 && (
+          <div style={{ marginTop:6, display:'flex', gap:8, alignItems:'center' }}>
+            <div style={{ fontFamily:mono, fontSize:8 }}>
+              <span style={{ color: lineup.length >= battingLineupSize ? C.green : C.amber }}>
+                {lineup.length}
+              </span>
+              <span style={{ color:C.dim }}>
+                {lineupMode === 'free_sub' ? ' players (full roster)' : ` / ${battingLineupSize} batters loaded`}
+              </span>
+            </div>
+            {flexSlot && lineup[flexSlot - 1] && (
+              <div style={{ fontFamily:mono, fontSize:7, color:C.purple, background:'rgba(167,139,250,0.1)', border:'1px solid rgba(167,139,250,0.3)', borderRadius:3, padding:'2px 6px' }}>
+                FLEX: #{lineup[flexSlot - 1].jersey} {lineup[flexSlot - 1].name}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Batter */}
       <div style={{ padding:'10px 12px', background:C.panel, borderRadius:8, border:`1px solid ${C.border}` }}>
-        <div style={{ fontFamily:mono, fontSize:7, letterSpacing:2, color:C.dim, marginBottom:8 }}>AT BAT</div>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+          <div style={{ fontFamily:mono, fontSize:7, letterSpacing:2, color:C.dim }}>AT BAT</div>
+          {lineup.length > 0 && (
+            <div style={{ fontFamily:mono, fontSize:7, color:C.dim }}>
+              {lineupPos + 1} / {battingLineupSize || lineup.length}
+              {flexSlot && lineupPos === flexSlot - 1 && (
+                <span style={{ color:C.purple, marginLeft:4 }}>FLEX</span>
+              )}
+            </div>
+          )}
+        </div>
         {lineup.length > 0 ? (
           <select value={lineupPos} onChange={e => onSelectBatter(Number(e.target.value))} style={{
             width:'100%', background:C.panel, border:`1px solid ${C.border}`, color:C.pri,
             borderRadius:4, padding:'10px', fontSize:14, fontFamily:sans, marginBottom:8,
           }}>
-            {lineup.map((p,i) => (
-              <option key={p.player_id||i} value={i}>#{p.jersey||'?'} {p.name} ({p.batter_type||'?'})</option>
-            ))}
+            {lineup.map((p, i) => {
+              const isFlex = flexSlot && i === flexSlot - 1
+              const isEH   = lineupMode === 'dp_flex_eh' && i === battingLineupSize - 1 && i !== flexSlot - 1
+              const suffix = isFlex ? ' [FLEX]' : isEH ? ' [EH]' : ''
+              return (
+                <option key={p.player_id || i} value={i}>
+                  {i + 1}. #{p.jersey || '?'} {p.name}{suffix}
+                </option>
+              )
+            })}
           </select>
         ) : (
           <input placeholder="Type batter name..." value={manualBatterName} onChange={e => onManualBatterName(e.target.value)}
@@ -554,7 +618,7 @@ function GameTab({
         )}
         {currentBatter && batterStats && (
           <div style={{ display:'flex', gap:12 }}>
-            {[['PA TODAY', batterStats.paToday],['K\'s', batterStats.strikeouts],['PA PITCHES', paPitches.length]].map(([l,v])=>(
+            {[['PA TODAY', batterStats.paToday], ["K'S", batterStats.strikeouts], ['PITCHES', paPitches.length]].map(([l, v]) => (
               <div key={l} style={{ textAlign:'center' }}>
                 <div style={{ fontFamily:bebas, fontSize:20, color:C.gold, lineHeight:1 }}>{v}</div>
                 <div style={{ fontFamily:mono, fontSize:7, color:C.dim }}>{l}</div>
@@ -611,6 +675,7 @@ export default function MobileLayout({
   onInningChange,
   // lineup
   lineup, lineupPos, onSelectBatter,
+  lineupMode, onLineupModeChange,
   manualBatterName, onManualBatterName,
   currentBatter, batterStats,
   pitchers, pitcherName, onPitcherChange,
@@ -667,6 +732,7 @@ export default function MobileLayout({
             ourRuns={ourRuns} oppRuns={oppRuns} onScoreChange={onScoreChange}
             onInningChange={onInningChange}
             lineup={lineup} lineupPos={lineupPos} onSelectBatter={onSelectBatter}
+            lineupMode={lineupMode} onLineupModeChange={onLineupModeChange}
             manualBatterName={manualBatterName} onManualBatterName={onManualBatterName}
             currentBatter={currentBatter} batterStats={batterStats}
             paPitches={paPitches} onNewPA={onNewPA}

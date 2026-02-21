@@ -334,6 +334,8 @@ export default function App() {
   const [oppLineup, setOppLineup]   = useState([])   // opponent roster
   const [lineupPos, setLineupPos]   = useState(0)
   const [manualBatterName, setManualBatterName] = useState('')
+  // LINEUP MODE: 'standard'=9, 'dp_flex'=10 (9 bat), 'eh'=10 (10 bat), 'dp_flex_eh'=11 (10 bat), 'free_sub'=full roster
+  const [lineupMode, setLineupMode] = useState('standard')
   const [pitchers, setPitchers]     = useState([])
   const [arsenal, setArsenal]       = useState(DEFAULT_ARSENAL)
   const [pitcherName, setPitcherName] = useState('')
@@ -626,11 +628,20 @@ export default function App() {
           setOn1b(true)
         }
 
-        // ── Advance to next batter ──────────────────────────────────────
+        // ── Advance to next batter (NFHS lineup-mode aware) ────────────
         if (lineup.length > 0) {
-          const nextPos = (lineupPos + 1) % lineup.length
+          // battingCount = how many slots actually bat
+          // dp_flex: FLEX (slot 9) does NOT bat unless subbed for DP — cycle through 9
+          // dp_flex_eh: FLEX (slot 10) does NOT bat — cycle through 10
+          // free_sub / eh / standard: cycle full lineup length
+          const battingCount =
+            lineupMode === 'dp_flex'     ? Math.min(9, lineup.length) :
+            lineupMode === 'dp_flex_eh'  ? Math.min(10, lineup.length) :
+            lineup.length  // standard, eh, free_sub all cycle full list
+
+          let nextPos = (lineupPos + 1) % battingCount
           setLineupPos(nextPos)
-          if (nextPos === 0) alert('🔁 Lineup wrapping to top of order')
+          if (nextPos === 0) console.log('Lineup cycling: back to top of order')
         }
 
         // ── Update outs + handle inning change ─────────────────────────
@@ -717,6 +728,7 @@ export default function App() {
     lineup, lineupPos, onSelectBatter: handleSelectBatter,
     manualBatterName, onManualBatterName: setManualBatterName,
     currentBatter, batterStats,
+    lineupMode, onLineupModeChange: setLineupMode,
     pitchers, pitcherName, onPitcherChange: handlePitcherChange,
     selectedZone, onSelectZone: setSelectedZone,
     selectedPitch, onSelectPitch: setSelectedPitch,
