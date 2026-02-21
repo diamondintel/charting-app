@@ -512,9 +512,11 @@ export default function App() {
 
     // Load opponent lineup — split into starters vs subs
     getOpponentLineup(team.team_id, game.opponent).then(l => {
+      console.log(`[Lineup Load] ${game.opponent}: ${l.length} players from DB`, l.map(p => `${p.lineup_order}:${p.name}`))
       setOppLineup(l)
       const { starters, bench } = splitLineup(l, lineupMode)
-      setLineup(starters)   // default: charting opponent (top of inning)
+      console.log(`[Lineup Split] starters=${starters.length} bench=${bench.length}`)
+      setLineup(starters)
       setSubs(bench)
       setLineupPos(0)
     }).catch(console.error)
@@ -581,6 +583,35 @@ export default function App() {
     }, 1500)
     return () => clearTimeout(timer)
   }, [inning, topBottom, outs, ourRuns, oppRuns, on1b, on2b, on3b, lineupPos, pitcherName, lineupMode, activePA])
+
+  // ── Rebuild lineup from PA history if roster is incomplete ───────────────────
+  // Handles case where opponent roster in DB has fewer players than were actually
+  // charted (e.g. lineup was never saved to roster tab, but PAs were recorded)
+  useEffect(() => {
+    if (topBottom !== 'top') return           // only applies to opponent batting
+    if (lineup.length >= 9) return            // lineup already full — no action needed
+    if (allPAs.length === 0) return           // no history to rebuild from
+
+    // Build ordered list of unique batters from PA history by lineup_spot
+    const seen = new Map()
+    const sorted = [...allPAs].sort((a, b) => (a.lineup_spot || 0) - (b.lineup_spot || 0))
+    for (const pa of sorted) {
+      if (pa.batter_name && !seen.has(pa.lineup_spot)) {
+        seen.set(pa.lineup_spot, {
+          name: pa.batter_name,
+          jersey: '?',
+          batter_type: 'unknown',
+          lineup_order: pa.lineup_spot || seen.size + 1,
+          player_id: `pa_${pa.lineup_spot}`,
+        })
+      }
+    }
+    if (seen.size <= lineup.length) return    // PA history doesn't add anything new
+
+    const rebuilt = Array.from(seen.values()).sort((a, b) => a.lineup_order - b.lineup_order)
+    console.log(`Rebuilt lineup from PA history: ${rebuilt.length} batters (was ${lineup.length})`)
+    setLineup(rebuilt)
+  }, [allPAs, oppLineup, topBottom])
 
   // ── Current batter ────────────────────────────────────────────────────────────
   const currentBatter = lineup[lineupPos] || (manualBatterName ? { name: manualBatterName, jersey: '?', batter_type: 'unknown', lineup_order: 0 } : null)
