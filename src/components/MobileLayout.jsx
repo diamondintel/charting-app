@@ -472,6 +472,7 @@ function GameTab({
   on1b, on2b, on3b, onToggleBase,
   ourRuns, oppRuns, onScoreChange,
   lineup, lineupPos, onSelectBatter, onNewPA,
+  subs, onSubstitute,
   lineupMode, onLineupModeChange,
   currentBatter, manualBatterName, onManualBatterName,
   batterStats, paPitches, onRoster, onPitcherChange, pitchers, pitcherName,
@@ -631,6 +632,39 @@ function GameTab({
         </button>
       </div>
 
+      {/* ── SUBSTITUTES ── */}
+      {subs && subs.length > 0 && (
+        <div style={{ padding:'10px 12px', background:C.panel, borderRadius:8, border:`1px solid ${C.border}` }}>
+          <div style={{ fontFamily:mono, fontSize:7, letterSpacing:2, color:C.dim, marginBottom:8 }}>
+            SUBSTITUTES <span style={{ color:C.amber }}>({subs.length})</span>
+          </div>
+          {subs.map(sub => (
+            <div key={sub.player_id || sub.name} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, padding:'6px 8px', background:'rgba(255,255,255,0.02)', borderRadius:4, border:`1px solid ${C.border}` }}>
+              <span style={{ fontFamily:bebas, fontSize:16, color:C.amber, minWidth:28 }}>#{sub.jersey || '?'}</span>
+              <span style={{ flex:1, fontFamily:'sans-serif', fontSize:13, color:C.pri, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{sub.name}</span>
+              <select
+                defaultValue=""
+                onChange={e => {
+                  const idx = parseInt(e.target.value)
+                  if (!isNaN(idx)) {
+                    onSubstitute?.(idx, sub)
+                    e.target.value = ""
+                  }
+                }}
+                style={{ background:'#0A1929', border:`1px solid ${C.amber}`, color:C.amber, borderRadius:4, padding:'4px 6px', fontSize:11, fontFamily:mono, cursor:'pointer' }}
+              >
+                <option value="">SUB IN FOR →</option>
+                {lineup.map((starter, idx) => (
+                  <option key={idx} value={idx}>
+                    {idx + 1}. #{starter.jersey || '?'} {starter.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Pitcher */}
       {pitchers?.length > 0 && (
         <div style={{ padding:'10px 12px', background:C.panel, borderRadius:8, border:`1px solid ${C.border}` }}>
@@ -675,6 +709,7 @@ export default function MobileLayout({
   onInningChange,
   // lineup
   lineup, lineupPos, onSelectBatter,
+  subs, onSubstitute,
   lineupMode, onLineupModeChange,
   manualBatterName, onManualBatterName,
   currentBatter, batterStats,
@@ -732,6 +767,7 @@ export default function MobileLayout({
             ourRuns={ourRuns} oppRuns={oppRuns} onScoreChange={onScoreChange}
             onInningChange={onInningChange}
             lineup={lineup} lineupPos={lineupPos} onSelectBatter={onSelectBatter}
+            subs={subs} onSubstitute={onSubstitute}
             lineupMode={lineupMode} onLineupModeChange={onLineupModeChange}
             manualBatterName={manualBatterName} onManualBatterName={onManualBatterName}
             currentBatter={currentBatter} batterStats={batterStats}

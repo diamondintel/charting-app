@@ -329,9 +329,10 @@ export default function App() {
   const [on3b, setOn3b]       = useState(false)
 
   // ── Roster state ─────────────────────────────────────────────────────────────
-  const [lineup, setLineup]         = useState([])   // active lineup (opponent or ours)
-  const [ourLineup, setOurLineup]   = useState([])   // Lady Hawks roster
-  const [oppLineup, setOppLineup]   = useState([])   // opponent roster
+  const [lineup, setLineup]         = useState([])   // active BATTING lineup (starters only)
+  const [subs, setSubs]             = useState([])   // bench / substitutes not yet in lineup
+  const [ourLineup, setOurLineup]   = useState([])   // full Lady Hawks roster (starters + subs)
+  const [oppLineup, setOppLineup]   = useState([])   // full opponent roster (starters + subs)
   const [lineupPos, setLineupPos]   = useState(0)
   const [manualBatterName, setManualBatterName] = useState('')
   // LINEUP MODE: 'standard'=9, 'dp_flex'=10 (9 bat), 'eh'=10 (10 bat), 'dp_flex_eh'=11 (10 bat), 'free_sub'=full roster
@@ -352,15 +353,31 @@ export default function App() {
   const [paPitches, setPAPitches]       = useState([])  // pitches this PA
   const [allPAs, setAllPAs]             = useState([])
 
+  // ── Split a roster into starters (batting lineup) and subs ─────────────────────
+  function splitLineup(players, mode) {
+    const BATTING_COUNTS = { standard: 9, dp_flex: 9, eh: 10, dp_flex_eh: 10, free_sub: Infinity }
+    const batCount = BATTING_COUNTS[mode] ?? 9
+    // Players with lineup_order 1..batCount are starters; 0 or > batCount are subs
+    const starters = players
+      .filter(p => p.lineup_order >= 1 && p.lineup_order <= batCount)
+      .sort((a, b) => a.lineup_order - b.lineup_order)
+    const bench = players
+      .filter(p => !p.lineup_order || p.lineup_order > batCount || p.lineup_order === 0)
+      .sort((a, b) => (a.lineup_order || 99) - (b.lineup_order || 99))
+    return { starters, bench }
+  }
+
   // ── Load roster + pitches when session starts ─────────────────────────────────
   useEffect(() => {
     if (!session) return
     const { team, game } = session
 
-    // Load opponent lineup
+    // Load opponent lineup — split into starters vs subs
     getOpponentLineup(team.team_id, game.opponent).then(l => {
       setOppLineup(l)
-      setLineup(l)       // default: charting opponent (top of inning)
+      const { starters, bench } = splitLineup(l, lineupMode)
+      setLineup(starters)   // default: charting opponent (top of inning)
+      setSubs(bench)
       setLineupPos(0)
     }).catch(console.error)
 
@@ -469,12 +486,21 @@ export default function App() {
     } else if (choice === 'bottom') {
       // Chart bottom half — OUR team bats
       setTopBottom('bottom')
-      setLineup(ourLineup.length > 0 ? ourLineup : [])
+      if (ourLineup.length > 0) {
+        const { starters, bench } = splitLineup(ourLineup, lineupMode)
+        setLineup(starters)
+        setSubs(bench)
+      } else {
+        setLineup([])
+        setSubs([])
+      }
     } else if (choice === 'next') {
       // End of bottom — advance to top of next inning, opponent bats
       setInning(m.nextInning || m.inning + 1)
       setTopBottom('top')
-      setLineup(oppLineup)
+      const { starters, bench } = splitLineup(oppLineup, lineupMode)
+      setLineup(starters)
+      setSubs(bench)
     }
     setLineupPos(0)
     setManualBatterName('')
@@ -711,13 +737,35 @@ export default function App() {
     const our = await getPlayers(session.team.team_id).catch(() => [])
     setOppLineup(opp)
     setOurLineup(our)
-    // Update active lineup based on current half
-    setLineup(topBottom === 'bottom' ? our : opp)
-    if ((topBottom === 'bottom' ? our : opp).length > 0) setLineupPos(0)
+    // Re-split active lineup based on current half + lineupMode
+    const active = topBottom === 'bottom' ? our : opp
+    if (active.length > 0) {
+      const { starters, bench } = splitLineup(active, lineupMode)
+      setLineup(starters)
+      setSubs(bench)
+      setLineupPos(0)
+    }
   }
 
   const canRecord = !!(selectedZone && selectedPitch && selectedOutcome)
   const canUndo   = paPitches.length > 0
+
+  // ── In-game substitution: swap sub into lineup slot, move starter to bench ────
+  function handleSubstitution(lineupIdx, subPlayer) {
+    setLineup(prev => {
+      const next = [...prev]
+      const outgoing = next[lineupIdx]  // starter leaving
+      next[lineupIdx] = { ...subPlayer, lineup_order: outgoing.lineup_order }
+      return next
+    })
+    setSubs(prev => {
+      // Remove the sub from bench, add outgoing starter to bench
+      const next = prev.filter(p => p.player_id !== subPlayer.player_id)
+      const outgoing = lineup[lineupIdx]
+      if (outgoing) next.push({ ...outgoing, lineup_order: 99 })
+      return next
+    })
+  }
 
   // ── Shared props bundle for both layouts ─────────────────────────────────────
   const sharedProps = {
@@ -726,6 +774,7 @@ export default function App() {
     ourRuns, oppRuns, onScoreChange: handleScoreChange,
     onInningChange: () => setShowHalfInningModal({ inning, nextHalf: topBottom === 'top' ? 'bottom' : 'top', nextInning: topBottom === 'bottom' ? inning + 1 : inning }),
     lineup, lineupPos, onSelectBatter: handleSelectBatter,
+    subs, onSubstitute: handleSubstitution,
     manualBatterName, onManualBatterName: setManualBatterName,
     currentBatter, batterStats,
     lineupMode, onLineupModeChange: setLineupMode,
@@ -836,6 +885,8 @@ export default function App() {
           batterStats={batterStats}
           lineupMode={lineupMode}
           onLineupModeChange={setLineupMode}
+          subs={subs}
+          onSubstitute={handleSubstitution}
         />
 
         <CenterPanel

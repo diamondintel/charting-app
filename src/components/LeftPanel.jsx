@@ -49,6 +49,8 @@ export default function LeftPanel({
   batterStats,
   lineupMode = 'standard',
   onLineupModeChange,
+  subs = [],
+  onSubstitute,
 }) {
   const signals = generateSignals(paPitches, balls, strikes, currentBatter?.batter_type)
   const tc = BATTER_TYPE_COLORS[currentBatter?.batter_type || 'unknown']
@@ -191,6 +193,40 @@ export default function LeftPanel({
           </div>
         )}
       </div>
+
+      {/* ── SUBSTITUTES ── */}
+      {subs.length > 0 && (
+        <div className={styles.section}>
+          <div className="section-label">
+            SUBSTITUTES <span style={{ color: 'var(--amber)' }}>({subs.length})</span>
+          </div>
+          {subs.map(sub => (
+            <div key={sub.player_id || sub.name} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, padding:'6px 8px', background:'rgba(255,255,255,0.02)', borderRadius:4, border:'1px solid var(--border)' }}>
+              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--amber)', minWidth:28 }}>
+                #{sub.jersey || '?'}
+              </span>
+              <span style={{ flex:1, fontSize:12, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {sub.name}
+              </span>
+              <select
+                defaultValue=""
+                onChange={e => {
+                  const idx = parseInt(e.target.value)
+                  if (!isNaN(idx)) { onSubstitute?.(idx, sub); e.target.value = "" }
+                }}
+                style={{ background:'var(--panel)', border:'1px solid var(--amber)', color:'var(--amber)', borderRadius:3, padding:'3px 5px', fontSize:10, fontFamily:"'Share Tech Mono',monospace", cursor:'pointer' }}
+              >
+                <option value="">SUB IN FOR →</option>
+                {lineup.map((starter, idx) => (
+                  <option key={idx} value={idx}>
+                    {idx + 1}. #{starter.jersey || '?'} {starter.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── SIGNAL FEED ── */}
       <div className={`${styles.section} ${styles.signalSection}`}>
