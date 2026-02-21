@@ -19,11 +19,27 @@ export async function getOrCreateTeam(name) {
 // ─── Games ────────────────────────────────────────────────────────────────────
 
 export async function getGames(teamId, limit = 20) {
-  let q = supabase.from('games').select('*').order('game_date', { ascending: false }).limit(limit)
+  // Join game_state so we can surface active/recently-saved games at the top
+  let q = supabase
+    .from('games')
+    .select('*, game_state(inning, top_bottom, our_runs, opp_runs, saved_at, lineup_mode)')
+    .order('game_date', { ascending: false })
+    .limit(limit)
   if (teamId) q = q.eq('team_id', teamId)
   const { data, error } = await q
   if (error) throw error
-  return data || []
+
+  const rows = data || []
+  // Sort: games with recent save data first (by saved_at desc), then unsaved by game_date desc
+  rows.sort((a, b) => {
+    const aSaved = a.game_state?.saved_at ? new Date(a.game_state.saved_at) : null
+    const bSaved = b.game_state?.saved_at ? new Date(b.game_state.saved_at) : null
+    if (aSaved && bSaved) return bSaved - aSaved
+    if (aSaved) return -1
+    if (bSaved) return 1
+    return new Date(b.game_date) - new Date(a.game_date)
+  })
+  return rows
 }
 
 export async function createGame(teamId, opponent, gameDate, location = '') {

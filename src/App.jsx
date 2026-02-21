@@ -38,61 +38,85 @@ function useWindowWidth() {
 
 // ─── Resume Game Row — shows saved state inline ───────────────────────────────
 function ResumeGameRow({ game, onResume }) {
-  const [state, setState] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // game_state is pre-joined from getGames — no extra DB call needed
+  const gs = game.game_state   // null if game was never saved
 
-  useEffect(() => {
-    loadGameState(game.game_id)
-      .then(s => setState(s))
-      .catch(() => setState(null))
-      .finally(() => setLoading(false))
-  }, [game.game_id])
+  const isActive = !!gs
+  const inningLabel = gs
+    ? `INN ${gs.inning} ${gs.top_bottom === 'top' ? '▲' : '▼'}`
+    : null
+  const scoreLabel = gs ? `${gs.our_runs} – ${gs.opp_runs}` : null
 
-  const inningLabel = state
-    ? `INN ${state.inning} ${state.top_bottom === 'top' ? '▲' : '▼'} · ${state.our_runs}-${state.opp_runs}`
+  const savedLabel = gs?.saved_at
+    ? (() => {
+        const d = new Date(gs.saved_at)
+        const now = new Date()
+        const diffH = (now - d) / 36e5
+        if (diffH < 1)   return `${Math.round(diffH * 60)}m ago`
+        if (diffH < 24)  return `${Math.round(diffH)}h ago`
+        return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+      })()
     : null
 
-  const savedLabel = state?.saved_at
-    ? new Date(state.saved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : null
+  const borderColor = isActive ? 'rgba(245,166,35,0.5)' : 'var(--border)'
+  const bgColor     = isActive ? 'rgba(245,166,35,0.06)' : 'transparent'
 
   return (
     <div
       onClick={() => onResume(game)}
       style={{
-        padding:'10px 12px', border:'1px solid var(--border)', borderRadius:6,
-        marginBottom:6, cursor:'pointer', transition:'all 0.15s',
-        display:'flex', flexDirection:'column', gap:4,
+        padding: '10px 12px',
+        border: `1px solid ${borderColor}`,
+        borderRadius: 6,
+        marginBottom: 6,
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+        background: bgColor,
+        display: 'flex', flexDirection: 'column', gap: 5,
       }}
-      onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}
-      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.background = 'rgba(245,166,35,0.1)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = borderColor;   e.currentTarget.style.background = bgColor }}
     >
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span style={{ fontFamily:"'Rajdhani', sans-serif", fontWeight:700, fontSize:15 }}>
+      {/* Row 1: opponent + date */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15, color: isActive ? 'var(--gold)' : 'var(--text-primary)' }}>
           vs {game.opponent}
         </span>
-        <span style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:10, color:'var(--text-dim)' }}>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: 'var(--text-dim)' }}>
           {game.game_date}
         </span>
       </div>
-      {!loading && (
-        <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-          {inningLabel ? (
-            <>
-              <span style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, color:'var(--gold)', background:'rgba(245,166,35,0.1)', border:'1px solid rgba(245,166,35,0.25)', borderRadius:3, padding:'2px 7px', letterSpacing:1 }}>
-                {inningLabel}
-              </span>
-              <span style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:8, color:'var(--text-dim)' }}>
-                SAVED {savedLabel}
-              </span>
-            </>
-          ) : (
-            <span style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, color:'var(--text-dim)' }}>
-              NO SAVE DATA — will restart fresh
+
+      {/* Row 2: save state badges */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        {isActive ? (
+          <>
+            <span style={{
+              fontFamily: "'Share Tech Mono', monospace", fontSize: 8, letterSpacing: 1.5,
+              color: 'var(--gold)', background: 'rgba(245,166,35,0.15)',
+              border: '1px solid rgba(245,166,35,0.4)',
+              borderRadius: 3, padding: '2px 7px',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--gold)', display: 'inline-block' }} />
+              ACTIVE
             </span>
-          )}
-        </div>
-      )}
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: 'var(--text-secondary)', letterSpacing: 1 }}>
+              {inningLabel}
+            </span>
+            <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: 'var(--gold)', letterSpacing: 1 }}>
+              {scoreLabel}
+            </span>
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8, color: 'var(--text-dim)', marginLeft: 'auto' }}>
+              {savedLabel}
+            </span>
+          </>
+        ) : (
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8, color: 'var(--text-dim)' }}>
+            NO SAVE DATA
+          </span>
+        )}
+      </div>
     </div>
   )
 }
@@ -131,7 +155,11 @@ function SetupScreen({ onGameReady }) {
   }
 
   async function handleResumeGame(game) {
-    const savedState = await loadGameState(game.game_id).catch(() => null)
+    // game_state is pre-joined from getGames; use it directly to avoid extra round-trip
+    // Fall back to a fresh loadGameState call in case the join was null but data exists
+    const savedState = game.game_state
+      ? game.game_state
+      : await loadGameState(game.game_id).catch(() => null)
     onGameReady({ team: selectedTeam, game, pitcher: selectedPitcher, savedState })
   }
 
@@ -284,7 +312,7 @@ function SetupScreen({ onGameReady }) {
             {games.length > 0 && (
               <div style={{ borderTop:'1px solid var(--border)', paddingTop:16 }}>
                 <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, letterSpacing:3, color:'var(--text-dim)', marginBottom:10 }}>RESUME GAME</div>
-                {games.slice(0, 5).map(g => (
+                {games.map(g => (
                   <ResumeGameRow key={g.game_id} game={g} onResume={handleResumeGame} />
                 ))}
               </div>
