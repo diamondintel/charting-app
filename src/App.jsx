@@ -699,7 +699,16 @@ export default function App() {
       setLineup(starters)
       setSubs(bench)
     }
-    setLineupPos(0)
+    // NOTE: Do NOT reset lineupPos here — batting order is continuous across innings.
+    // Batter 4 leads off inning 2 if batters 1-2-3 made outs in inning 1.
+    // Only reset when switching sides (top↔bottom) since each team tracks separately.
+    if (choice === 'bottom' || choice === 'skip') {
+      // Switching to a different team batting — reset that team's position to
+      // wherever it was when they last batted (we don't track that yet, so start at 0
+      // for the batting team that's newly coming up)
+      setLineupPos(0)
+    }
+    // 'next' = same opponent continues top of next inning — lineupPos carries over
     setManualBatterName('')
     setActivePA(null)
     setPAPitches([])
@@ -853,7 +862,6 @@ export default function App() {
 
         // ── Advance to next batter ────────────────────────────────────
         const currentLineup = lineupRef.current
-        console.warn('[BATTER ADVANCE] lineup:', currentLineup.length, 'players | pos', lineupPos, '->', (lineupPos + 1) % Math.max(currentLineup.length,1), '| names:', currentLineup.map(p=>p.name).join(', '))
         if (currentLineup.length > 0) {
           const nextPos = (lineupPos + 1) % currentLineup.length
           setLineupPos(nextPos)
