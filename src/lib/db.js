@@ -240,14 +240,17 @@ export async function deletePlayer(playerId) {
 }
 
 export async function upsertOpponentPlayer(teamId, opponentName, player) {
+  // Use insert instead of upsert — clearOpponentLineup always runs first,
+  // so there are no existing rows to conflict with. This avoids the
+  // team_id,name conflict key colliding across different games vs same opponent.
   const { data, error } = await supabase
     .from('players')
-    .upsert({
+    .insert({
       ...player,
       team_id: teamId,
       team_side: 'opponent',
       opponent_name: opponentName,
-    }, { onConflict: 'team_id,name' })
+    })
     .select().single()
   if (error) throw error
   return data

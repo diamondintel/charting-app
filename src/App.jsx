@@ -512,10 +512,11 @@ export default function App() {
 
     // Load opponent lineup — split into starters vs subs
     getOpponentLineup(team.team_id, game.opponent).then(l => {
-      console.log(`[Lineup Load] ${game.opponent}: ${l.length} players from DB`, l.map(p => `${p.lineup_order}:${p.name}`))
+      console.warn(`[LINEUP LOAD] "${game.opponent}": ${l.length} players in DB`)
+      l.forEach((p,i) => console.log(`  ${i+1}. order=${p.lineup_order} name="${p.name}" jersey=${p.jersey}`))
       setOppLineup(l)
       const { starters, bench } = splitLineup(l, lineupMode)
-      console.log(`[Lineup Split] starters=${starters.length} bench=${bench.length}`)
+      console.warn(`[LINEUP SPLIT] starters=${starters.length} bench=${bench.length} mode=${lineupMode}`)
       setLineup(starters)
       setSubs(bench)
       setLineupPos(0)
