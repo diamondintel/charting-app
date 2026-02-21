@@ -511,55 +511,68 @@ export default function App() {
     if (!session) return
     const { team, game, savedState } = session
 
-    // Load opponent lineup — split into starters vs subs
-    getOpponentLineup(team.team_id, game.opponent).then(l => {
-      console.warn(`[LINEUP LOAD] "${game.opponent}": ${l.length} players in DB`)
-      l.forEach((p,i) => console.log(`  ${i+1}. order=${p.lineup_order} name="${p.name}" jersey=${p.jersey}`))
-      setOppLineup(l)
-      const { starters, bench } = splitLineup(l, lineupMode)
-      console.warn(`[LINEUP SPLIT] starters=${starters.length} bench=${bench.length} mode=${lineupMode}`)
-      setLineup(starters)
-      setSubs(bench)
-      setLineupPos(0)
-    }).catch(console.error)
+    // Load everything — lineup MUST be set before PAs to avoid race condition
+    // where PA history overwrites the proper roster lineup
+    async function loadSession() {
+      try {
+        // ── Step 1: lineup (must come first) ──────────────────────────
+        const [oppPlayers, ourPlayers, ps] = await Promise.all([
+          getOpponentLineup(team.team_id, game.opponent),
+          getPlayers(team.team_id),
+          getPitchers(team.team_id),
+        ])
 
-    // Load our lineup (Lady Hawks batting order)
-    getPlayers(team.team_id).then(l => {
-      setOurLineup(l)
-    }).catch(console.error)
+        console.warn(`[LINEUP LOAD] "${game.opponent}": ${oppPlayers.length} players in DB`)
+        oppPlayers.forEach((p,i) => console.log(`  ${i+1}. order=${p.lineup_order} name="${p.name}"`))
 
-    // Load pitchers — use pre-selected pitcher from setup if available
-    getPitchers(team.team_id).then(ps => {
-      setPitchers(ps)
-      // Use pitcher chosen on setup screen, fall back to first pitcher, then default
-      const chosen = session?.pitcher || ps[0] || null
-      if (chosen) {
-        setPitcherName(chosen.name)
-        setArsenal(chosen.pitcher_arsenal?.length ? chosen.pitcher_arsenal : DEFAULT_ARSENAL)
-      } else {
-        setPitcherName('Pitcher')
-        setArsenal(DEFAULT_ARSENAL)
-      }
-    }).catch(console.error)
+        const mode = savedState?.lineup_mode ?? lineupMode
+        const { starters, bench } = splitLineup(oppPlayers, mode)
+        console.warn(`[LINEUP SPLIT] starters=${starters.length} bench=${bench.length} mode=${mode}`)
 
-    // Load existing game pitches
-    getPitchesForGame(game.game_id).then(setGamePitches).catch(console.error)
-    getPAsForGame(game.game_id).then(setAllPAs).catch(console.error)
+        setOppLineup(oppPlayers)
+        setOurLineup(ourPlayers)
+        setLineup(starters)
+        setSubs(bench)
+        setLineupPos(0)
 
-    // Restore saved game state if resuming
-    if (savedState) {
-      setInning(savedState.inning ?? 1)
-      setTopBottom(savedState.top_bottom ?? 'top')
-      setOuts(savedState.outs ?? 0)
-      setOurRuns(savedState.our_runs ?? 0)
-      setOppRuns(savedState.opp_runs ?? 0)
-      setOn1b(savedState.on1b ?? false)
-      setOn2b(savedState.on2b ?? false)
-      setOn3b(savedState.on3b ?? false)
-      setLineupPos(savedState.lineup_pos ?? 0)
-      setLineupMode(savedState.lineup_mode ?? 'standard')
-      if (savedState.pitcher_name) setPitcherName(savedState.pitcher_name)
+        // Pitchers
+        setPitchers(ps)
+        const chosen = session?.pitcher || ps[0] || null
+        if (chosen) {
+          setPitcherName(chosen.name)
+          setArsenal(chosen.pitcher_arsenal?.length ? chosen.pitcher_arsenal : DEFAULT_ARSENAL)
+        } else {
+          setPitcherName('Pitcher')
+          setArsenal(DEFAULT_ARSENAL)
+        }
+
+        // ── Step 2: restore saved state (after lineup is set) ─────────
+        if (savedState) {
+          setInning(savedState.inning ?? 1)
+          setTopBottom(savedState.top_bottom ?? 'top')
+          setOuts(savedState.outs ?? 0)
+          setOurRuns(savedState.our_runs ?? 0)
+          setOppRuns(savedState.opp_runs ?? 0)
+          setOn1b(savedState.on1b ?? false)
+          setOn2b(savedState.on2b ?? false)
+          setOn3b(savedState.on3b ?? false)
+          setLineupPos(savedState.lineup_pos ?? 0)
+          setLineupMode(savedState.lineup_mode ?? 'standard')
+          if (savedState.pitcher_name) setPitcherName(savedState.pitcher_name)
+        }
+
+        // ── Step 3: pitch history (safe now that lineup is established) ─
+        const [pitches, pas] = await Promise.all([
+          getPitchesForGame(game.game_id),
+          getPAsForGame(game.game_id),
+        ])
+        setGamePitches(pitches)
+        setAllPAs(pas)
+
+      } catch(e) { console.error('Session load failed:', e) }
     }
+
+    loadSession()
   }, [session])
 
   // ── Auto-save game state after every significant change (debounced 1.5s) ──────
@@ -585,35 +598,6 @@ export default function App() {
     }, 1500)
     return () => clearTimeout(timer)
   }, [inning, topBottom, outs, ourRuns, oppRuns, on1b, on2b, on3b, lineupPos, pitcherName, lineupMode, activePA])
-
-  // ── Rebuild lineup from PA history if roster is incomplete ───────────────────
-  // Handles case where opponent roster in DB has fewer players than were actually
-  // charted (e.g. lineup was never saved to roster tab, but PAs were recorded)
-  useEffect(() => {
-    if (topBottom !== 'top') return           // only applies to opponent batting
-    if (lineup.length >= 9) return            // lineup already full — no action needed
-    if (allPAs.length === 0) return           // no history to rebuild from
-
-    // Build ordered list of unique batters from PA history by lineup_spot
-    const seen = new Map()
-    const sorted = [...allPAs].sort((a, b) => (a.lineup_spot || 0) - (b.lineup_spot || 0))
-    for (const pa of sorted) {
-      if (pa.batter_name && !seen.has(pa.lineup_spot)) {
-        seen.set(pa.lineup_spot, {
-          name: pa.batter_name,
-          jersey: '?',
-          batter_type: 'unknown',
-          lineup_order: pa.lineup_spot || seen.size + 1,
-          player_id: `pa_${pa.lineup_spot}`,
-        })
-      }
-    }
-    if (seen.size <= lineup.length) return    // PA history doesn't add anything new
-
-    const rebuilt = Array.from(seen.values()).sort((a, b) => a.lineup_order - b.lineup_order)
-    console.log(`Rebuilt lineup from PA history: ${rebuilt.length} batters (was ${lineup.length})`)
-    setLineup(rebuilt)
-  }, [allPAs, oppLineup, topBottom])
 
   // Keep lineupRef current so async handlers don't capture stale closure
   lineupRef.current = lineup
