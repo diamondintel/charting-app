@@ -1,6 +1,6 @@
 import styles from './Header.module.css'
 
-export default function Header({ ourName, oppName, ourRuns, oppRuns, inning, topBottom, onScoreChange, onInningChange, pitcherName, pitchers, onPitcherChange, pitchCount }) {
+export default function Header({ ourName, oppName, ourRuns, oppRuns, inning, topBottom, onScoreChange, onInningChange, pitcherName, pitchers, onPitcherChange, pitchCount, saveStatus }) {
   // Format pitcher as "A. Groover"
   const pitcherShort = pitcherName ? (() => {
     const parts = pitcherName.trim().split(' ')
@@ -80,11 +80,26 @@ export default function Header({ ourName, oppName, ourRuns, oppRuns, inning, top
         </div>
       </div>
 
-      {/* Live pill */}
+      {/* Live pill + save status */}
       <div className={styles.livePill}>
         <div className={styles.liveDot} />
         LIVE
       </div>
+      {saveStatus === 'saving' && (
+        <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:'var(--text-dim)', letterSpacing:1, marginLeft:6 }}>
+          SAVING…
+        </div>
+      )}
+      {saveStatus === 'saved' && (
+        <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:'var(--green)', letterSpacing:1, marginLeft:6 }}>
+          ✓ SAVED
+        </div>
+      )}
+      {saveStatus === 'error' && (
+        <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:'var(--red)', letterSpacing:1, marginLeft:6 }}>
+          ⚠ SAVE ERR
+        </div>
+      )}
 
       {/* Animated separator */}
       <div className={styles.separator} />

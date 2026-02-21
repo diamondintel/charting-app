@@ -14,6 +14,7 @@ import {
   createPA, updatePAResult,
   insertPitch, deletePitch,
   getPitchesForGame, getPitchesForPA, getPAsForGame,
+  saveGameState, loadGameState,
 } from './lib/db'
 import {
   advanceCount, computePitchStats, pitchTypeBreakdown, pitchEffectiveness,
@@ -33,6 +34,67 @@ function useWindowWidth() {
     return () => window.removeEventListener('resize', handler)
   }, [])
   return width
+}
+
+// ─── Resume Game Row — shows saved state inline ───────────────────────────────
+function ResumeGameRow({ game, onResume }) {
+  const [state, setState] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadGameState(game.game_id)
+      .then(s => setState(s))
+      .catch(() => setState(null))
+      .finally(() => setLoading(false))
+  }, [game.game_id])
+
+  const inningLabel = state
+    ? `INN ${state.inning} ${state.top_bottom === 'top' ? '▲' : '▼'} · ${state.our_runs}-${state.opp_runs}`
+    : null
+
+  const savedLabel = state?.saved_at
+    ? new Date(state.saved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null
+
+  return (
+    <div
+      onClick={() => onResume(game)}
+      style={{
+        padding:'10px 12px', border:'1px solid var(--border)', borderRadius:6,
+        marginBottom:6, cursor:'pointer', transition:'all 0.15s',
+        display:'flex', flexDirection:'column', gap:4,
+      }}
+      onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}
+      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+    >
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <span style={{ fontFamily:"'Rajdhani', sans-serif", fontWeight:700, fontSize:15 }}>
+          vs {game.opponent}
+        </span>
+        <span style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:10, color:'var(--text-dim)' }}>
+          {game.game_date}
+        </span>
+      </div>
+      {!loading && (
+        <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+          {inningLabel ? (
+            <>
+              <span style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, color:'var(--gold)', background:'rgba(245,166,35,0.1)', border:'1px solid rgba(245,166,35,0.25)', borderRadius:3, padding:'2px 7px', letterSpacing:1 }}>
+                {inningLabel}
+              </span>
+              <span style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:8, color:'var(--text-dim)' }}>
+                SAVED {savedLabel}
+              </span>
+            </>
+          ) : (
+            <span style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, color:'var(--text-dim)' }}>
+              NO SAVE DATA — will restart fresh
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Setup Screen ─────────────────────────────────────────────────────────────
@@ -69,7 +131,8 @@ function SetupScreen({ onGameReady }) {
   }
 
   async function handleResumeGame(game) {
-    onGameReady({ team: selectedTeam, game, pitcher: selectedPitcher })
+    const savedState = await loadGameState(game.game_id).catch(() => null)
+    onGameReady({ team: selectedTeam, game, pitcher: selectedPitcher, savedState })
   }
 
   if (loading) return (
@@ -222,16 +285,7 @@ function SetupScreen({ onGameReady }) {
               <div style={{ borderTop:'1px solid var(--border)', paddingTop:16 }}>
                 <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, letterSpacing:3, color:'var(--text-dim)', marginBottom:10 }}>RESUME GAME</div>
                 {games.slice(0, 5).map(g => (
-                  <div
-                    key={g.game_id}
-                    onClick={() => handleResumeGame(g)}
-                    style={{ padding:'10px 12px', border:'1px solid var(--border)', borderRadius:3, marginBottom:6, cursor:'pointer', display:'flex', justifyContent:'space-between', transition:'all 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                  >
-                    <span style={{ fontFamily:"'Rajdhani', sans-serif", fontWeight:600 }}>vs {g.opponent}</span>
-                    <span style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:10, color:'var(--text-dim)' }}>{g.game_date}</span>
-                  </div>
+                  <ResumeGameRow key={g.game_id} game={g} onResume={handleResumeGame} />
                 ))}
               </div>
             )}
@@ -308,8 +362,9 @@ function HalfInningModal({ modal, topBottom, ourLineup, onChoice }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [session, setSession] = useState(null) // { team, game }
+  const [session, setSession] = useState(null) // { team, game, savedState? }
   const [showRoster, setShowRoster] = useState(false)
+  const [saveStatus, setSaveStatus] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [activeView, setActiveView] = useState('chart')  // 'chart' | 'scorebook'
   const [showScorebook, setShowScorebook] = useState(false)
   const [showHalfInningModal, setShowHalfInningModal] = useState(null)
@@ -370,7 +425,7 @@ export default function App() {
   // ── Load roster + pitches when session starts ─────────────────────────────────
   useEffect(() => {
     if (!session) return
-    const { team, game } = session
+    const { team, game, savedState } = session
 
     // Load opponent lineup — split into starters vs subs
     getOpponentLineup(team.team_id, game.opponent).then(l => {
@@ -403,7 +458,46 @@ export default function App() {
     // Load existing game pitches
     getPitchesForGame(game.game_id).then(setGamePitches).catch(console.error)
     getPAsForGame(game.game_id).then(setAllPAs).catch(console.error)
+
+    // Restore saved game state if resuming
+    if (savedState) {
+      setInning(savedState.inning ?? 1)
+      setTopBottom(savedState.top_bottom ?? 'top')
+      setOuts(savedState.outs ?? 0)
+      setOurRuns(savedState.our_runs ?? 0)
+      setOppRuns(savedState.opp_runs ?? 0)
+      setOn1b(savedState.on1b ?? false)
+      setOn2b(savedState.on2b ?? false)
+      setOn3b(savedState.on3b ?? false)
+      setLineupPos(savedState.lineup_pos ?? 0)
+      setLineupMode(savedState.lineup_mode ?? 'standard')
+      if (savedState.pitcher_name) setPitcherName(savedState.pitcher_name)
+    }
   }, [session])
+
+  // ── Auto-save game state after every significant change (debounced 1.5s) ──────
+  useEffect(() => {
+    if (!session?.game?.game_id) return
+    setSaveStatus('saving')
+    const timer = setTimeout(async () => {
+      try {
+        await saveGameState(session.game.game_id, {
+          inning, topBottom, outs,
+          ourRuns, oppRuns,
+          on1b, on2b, on3b,
+          lineupPos, pitcherName, lineupMode,
+          activePaId: activePA?.pa_id || null,
+        })
+        setSaveStatus('saved')
+        // Reset to idle after 2s
+        setTimeout(() => setSaveStatus('idle'), 2000)
+      } catch (e) {
+        console.error('Auto-save failed:', e)
+        setSaveStatus('error')
+      }
+    }, 1500)
+    return () => clearTimeout(timer)
+  }, [inning, topBottom, outs, ourRuns, oppRuns, on1b, on2b, on3b, lineupPos, pitcherName, lineupMode, activePA])
 
   // ── Current batter ────────────────────────────────────────────────────────────
   const currentBatter = lineup[lineupPos] || (manualBatterName ? { name: manualBatterName, jersey: '?', batter_type: 'unknown', lineup_order: 0 } : null)
@@ -793,6 +887,7 @@ export default function App() {
     gamePitches, session,
     pitcher: pitchers.find(p => p.name === pitcherName) || null,
     Scorebook,
+    saveStatus,
   }
 
   // ── Mobile layout (< 1024px) ──────────────────────────────────────────────────
@@ -812,6 +907,7 @@ export default function App() {
           pitchers={pitchers}
           onPitcherChange={handlePitcherChange}
           pitchCount={gamePitches.length}
+          saveStatus={saveStatus}
         />
         <MobileLayout {...sharedProps} />
         {showRoster && <RosterTab session={session} onClose={handleRosterClose} lineupMode={lineupMode} />}
@@ -836,6 +932,7 @@ export default function App() {
         pitchers={pitchers}
         onPitcherChange={handlePitcherChange}
         pitchCount={gamePitches.length}
+        saveStatus={saveStatus}
       />
 
       {/* View toggle bar */}

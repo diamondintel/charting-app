@@ -253,3 +253,37 @@ export async function getPlayersForTeam(teamId) {
   if (error) throw error
   return data || []
 }
+
+// ─── Game State (Save / Resume) ───────────────────────────────────────────────
+
+export async function saveGameState(gameId, state) {
+  const { error } = await supabase
+    .from('game_state')
+    .upsert({
+      game_id:      gameId,
+      inning:       state.inning,
+      top_bottom:   state.topBottom,
+      outs:         state.outs,
+      our_runs:     state.ourRuns,
+      opp_runs:     state.oppRuns,
+      on1b:         state.on1b,
+      on2b:         state.on2b,
+      on3b:         state.on3b,
+      lineup_pos:   state.lineupPos,
+      pitcher_name: state.pitcherName,
+      lineup_mode:  state.lineupMode,
+      active_pa_id: state.activePaId || null,
+      saved_at:     new Date().toISOString(),
+    }, { onConflict: 'game_id' })
+  if (error) throw error
+}
+
+export async function loadGameState(gameId) {
+  const { data, error } = await supabase
+    .from('game_state')
+    .select('*')
+    .eq('game_id', gameId)
+    .single()
+  if (error) return null   // no saved state yet — that's fine
+  return data
+}
