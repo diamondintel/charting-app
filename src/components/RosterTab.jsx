@@ -414,8 +414,13 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
         batter_type: p.batter_type || 'unknown',
         position: p.position || '',
       }))
-      // Pad to at least 9
-      while (populated.length < 9) populated.push({ spot: populated.length+1, name:'', jersey:'', batter_type:'unknown', position:'' })
+      // Pad to match current lineup mode slot count
+      while (populated.length < totalSlots) {
+        const idx = populated.length
+        const isFlex = (lineupMode === 'dp_flex' && idx === 9) || (lineupMode === 'dp_flex_eh' && idx === 10)
+        const isEH   = lineupMode === 'dp_flex_eh' && idx === 9
+        populated.push({ spot: populated.length+1, name:'', jersey:'', batter_type:'unknown', position: isFlex?'FLEX':isEH?'EH':'' })
+      }
       setRows(populated)
     } catch(e) { setError(e.message) }
     finally { setLoadingDb(false) }
@@ -423,6 +428,19 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
 
   function updateRow(idx, key, val) {
     setRows(prev => prev.map((r,i) => i===idx ? {...r, [key]:val} : r))
+  }
+
+  function moveRow(idx, dir) {
+    const swapIdx = idx + dir
+    setRows(prev => {
+      if (swapIdx < 0 || swapIdx >= prev.length) return prev
+      const next = [...prev]
+      // Swap the two rows, but keep spot numbers in place
+      const tmp = { ...next[swapIdx], spot: next[swapIdx].spot }
+      next[swapIdx] = { ...next[idx], spot: next[swapIdx].spot }
+      next[idx]     = { ...tmp, spot: next[idx].spot }
+      return next
+    })
   }
 
   function addRow() {
@@ -519,10 +537,11 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
 
       <div className={styles.playerHeaderRow}>
         <div className={styles.colOrder}>SPOT</div>
+        <div style={{width:40, flexShrink:0}}></div>
         <div className={styles.colJersey}>JERSEY</div>
         <div className={styles.colName}>NAME</div>
         <div className={styles.colPos}>POS</div>
-        <div className={styles.colType}>BATTER TYPE</div>
+        <div className={styles.colType}>TYPE</div>
       </div>
 
       {rows.map((row, i) => (
@@ -531,6 +550,31 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
             <span className={styles.spotNum}>{row.spot}</span>
             {row.position === 'FLEX' && <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:7,color:'var(--purple)',display:'block',letterSpacing:1}}>FLEX</span>}
             {row.position === 'EH' && <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:7,color:'var(--cyan)',display:'block',letterSpacing:1}}>EH</span>}
+          </div>
+          {/* ↑↓ reorder buttons */}
+          <div style={{width:40, flexShrink:0, display:'flex', flexDirection:'column', gap:2, alignItems:'center', justifyContent:'center'}}>
+            <button
+              onClick={() => moveRow(i, -1)}
+              disabled={i === 0}
+              style={{
+                width:28, height:18, padding:0, border:'1px solid var(--border)',
+                background: i===0 ? 'transparent' : 'rgba(255,255,255,0.04)',
+                color: i===0 ? 'var(--text-dim)' : 'var(--text-secondary)',
+                borderRadius:3, cursor: i===0 ? 'default' : 'pointer',
+                fontFamily:"'Share Tech Mono',monospace", fontSize:10, lineHeight:1,
+              }}
+            >▲</button>
+            <button
+              onClick={() => moveRow(i, 1)}
+              disabled={i === rows.length - 1}
+              style={{
+                width:28, height:18, padding:0, border:'1px solid var(--border)',
+                background: i===rows.length-1 ? 'transparent' : 'rgba(255,255,255,0.04)',
+                color: i===rows.length-1 ? 'var(--text-dim)' : 'var(--text-secondary)',
+                borderRadius:3, cursor: i===rows.length-1 ? 'default' : 'pointer',
+                fontFamily:"'Share Tech Mono',monospace", fontSize:10, lineHeight:1,
+              }}
+            >▼</button>
           </div>
           <div className={styles.colJersey}>
             <input className={styles.cellInput} placeholder="#" value={row.jersey}
