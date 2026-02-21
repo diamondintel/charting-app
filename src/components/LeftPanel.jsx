@@ -27,6 +27,14 @@ const BATTER_TYPE_COLORS = {
   unknown: { bg: 'rgba(61,96,128,0.2)',    border: 'rgba(61,96,128,0.4)',   color: '#7BACC8' },
 }
 
+const LINEUP_MODES = {
+  standard:   { label: 'Standard 9',        batters: 9  },
+  dp_flex:    { label: 'DP / Flex (9 bat)', batters: 9  },
+  eh:         { label: 'EH (10 bat)',        batters: 10 },
+  dp_flex_eh: { label: 'DP / Flex + EH',    batters: 10 },
+  free_sub:   { label: 'Free Sub / Roster', batters: 0  },
+}
+
 export default function LeftPanel({
   balls, strikes, outs,
   on1b, on2b, on3b,
@@ -39,6 +47,8 @@ export default function LeftPanel({
   onManualBatterName,
   paPitches,
   batterStats,
+  lineupMode = 'standard',
+  onLineupModeChange,
 }) {
   const signals = generateSignals(paPitches, balls, strikes, currentBatter?.batter_type)
   const tc = BATTER_TYPE_COLORS[currentBatter?.batter_type || 'unknown']
@@ -81,9 +91,46 @@ export default function LeftPanel({
         </div>
       </div>
 
+      {/* ── LINEUP FORMAT ── */}
+      <div className={styles.section}>
+        <div className="section-label">LINEUP FORMAT</div>
+        <select
+          className={styles.batterSelect}
+          value={lineupMode}
+          onChange={e => onLineupModeChange?.(e.target.value)}
+          style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}
+        >
+          {Object.entries(LINEUP_MODES).map(([key, m]) => (
+            <option key={key} value={key}>{m.label}</option>
+          ))}
+        </select>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: 'var(--text-dim)', marginTop: 4 }}>
+          {lineup.length > 0 && (
+            <>
+              <span style={{ color: lineup.length >= (LINEUP_MODES[lineupMode]?.batters || lineup.length) ? 'var(--green)' : 'var(--amber)' }}>
+                {lineup.length}
+              </span>
+              {lineupMode === 'free_sub'
+                ? ' players (full roster)'
+                : ` / ${LINEUP_MODES[lineupMode]?.batters || '?'} batters loaded`}
+            </>
+          )}
+        </div>
+      </div>
+
       {/* ── AT BAT ── */}
       <div className={styles.section}>
-        <div className="section-label">AT BAT</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="section-label" style={{ marginBottom: 0 }}>AT BAT</div>
+          {lineup.length > 0 && (
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: 'var(--text-dim)' }}>
+              {lineupPos + 1}&nbsp;/&nbsp;{lineupMode === 'free_sub' ? lineup.length : (LINEUP_MODES[lineupMode]?.batters || lineup.length)}
+              {lineupMode === 'dp_flex' && lineupPos === 9 && <span style={{ color: 'var(--purple)', marginLeft: 4 }}>FLEX</span>}
+              {lineupMode === 'dp_flex_eh' && lineupPos === 10 && <span style={{ color: 'var(--purple)', marginLeft: 4 }}>FLEX</span>}
+            </div>
+          )}
+        </div>
+        <div style={{ marginTop: 6 }} />
 
         {lineup.length > 0 ? (
           <select
@@ -91,11 +138,16 @@ export default function LeftPanel({
             value={lineupPos}
             onChange={e => onSelectBatter(Number(e.target.value))}
           >
-            {lineup.map((p, i) => (
-              <option key={p.player_id || i} value={i}>
-                #{p.jersey || '?'}  {p.name}  ({p.batter_type || 'unknown'})
-              </option>
-            ))}
+            {lineup.map((p, i) => {
+              const isFlex = (lineupMode === 'dp_flex' && i === 9) || (lineupMode === 'dp_flex_eh' && i === 10)
+              const isEH   = lineupMode === 'dp_flex_eh' && i === 9
+              const suffix = isFlex ? ' [FLEX]' : isEH ? ' [EH]' : ''
+              return (
+                <option key={p.player_id || i} value={i}>
+                  {i + 1}. #{p.jersey || '?'} {p.name}{suffix}
+                </option>
+              )
+            })}
           </select>
         ) : (
           <input
