@@ -216,6 +216,27 @@ function OurRoster({ teamId, onRosterChange }) {
     load()
   }
 
+  async function moveToSpot(player, toSpot) {
+    // toSpot is 1-based target batting order position
+    const sorted = [...players].sort((a,b) => (a.lineup_order||99) - (b.lineup_order||99))
+    const fromIdx = sorted.findIndex(p => p.player_id === player.player_id)
+    const toIdx   = toSpot - 1
+    if (fromIdx < 0 || toIdx < 0 || toIdx >= sorted.length || fromIdx === toIdx) return
+    // Splice player out, insert at target position
+    const reordered = [...sorted]
+    const [moved] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, moved)
+    // Persist new lineup_order values for all affected players
+    try {
+      for (let i = 0; i < reordered.length; i++) {
+        if (reordered[i].lineup_order !== i + 1) {
+          await updatePlayer(reordered[i].player_id, { lineup_order: i + 1 })
+        }
+      }
+      load()
+    } catch(e) { setError(e.message) }
+  }
+
   if (loading) return <div className={styles.loading}>Loading roster...</div>
 
   const sorted = [...players].sort((a,b) => (a.lineup_order||99) - (b.lineup_order||99))
@@ -231,7 +252,7 @@ function OurRoster({ teamId, onRosterChange }) {
 
       {/* Column headers */}
       <div className={styles.playerHeaderRow}>
-        <div className={styles.colOrder}>#</div>
+        <div className={styles.colOrder} style={{minWidth:72}}>SPOT</div>
         <div className={styles.colJersey}>JERSEY</div>
         <div className={styles.colName}>NAME</div>
         <div className={styles.colPos}>POS</div>
@@ -242,13 +263,61 @@ function OurRoster({ teamId, onRosterChange }) {
 
       {sorted.map((p, i) => (
         <div key={p.player_id} className={styles.playerRow}>
-          {/* Lineup order */}
-          <div className={styles.colOrder}>
-            <div className={styles.orderBtns}>
-              <button onClick={() => moveLineup(p, -1)} disabled={i===0}>▲</button>
-              <span>{p.lineup_order || '—'}</span>
-              <button onClick={() => moveLineup(p, 1)} disabled={i===sorted.length-1}>▼</button>
+          {/* Lineup spot — ▲▼ + direct jump input */}
+          <div style={{minWidth:72, flexShrink:0, display:'flex', flexDirection:'column', gap:2, alignItems:'center', justifyContent:'center', padding:'2px 0'}}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:'var(--gold)', lineHeight:1}}>{p.lineup_order || '—'}</div>
+            <div style={{display:'flex', gap:2}}>
+              <button
+                onClick={() => moveLineup(p, -1)}
+                disabled={i === 0}
+                style={{
+                  width:28, height:18, padding:0, border:'1px solid var(--border)',
+                  background: i===0 ? 'transparent' : 'rgba(255,255,255,0.04)',
+                  color: i===0 ? 'var(--text-dim)' : 'var(--text-secondary)',
+                  borderRadius:3, cursor: i===0 ? 'default' : 'pointer',
+                  fontFamily:"'Share Tech Mono',monospace", fontSize:10, lineHeight:1,
+                }}
+              >▲</button>
+              <button
+                onClick={() => moveLineup(p, 1)}
+                disabled={i === sorted.length - 1}
+                style={{
+                  width:28, height:18, padding:0, border:'1px solid var(--border)',
+                  background: i===sorted.length-1 ? 'transparent' : 'rgba(255,255,255,0.04)',
+                  color: i===sorted.length-1 ? 'var(--text-dim)' : 'var(--text-secondary)',
+                  borderRadius:3, cursor: i===sorted.length-1 ? 'default' : 'pointer',
+                  fontFamily:"'Share Tech Mono',monospace", fontSize:10, lineHeight:1,
+                }}
+              >▼</button>
             </div>
+            <input
+              type="number"
+              min={1}
+              max={sorted.length}
+              placeholder={String(i + 1)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  const val = parseInt(e.target.value)
+                  if (!isNaN(val) && val >= 1 && val <= sorted.length) {
+                    moveToSpot(p, val)
+                    e.target.value = ''
+                    e.target.blur()
+                  }
+                }
+              }}
+              onBlur={e => {
+                const val = parseInt(e.target.value)
+                if (!isNaN(val) && val >= 1 && val <= sorted.length) moveToSpot(p, val)
+                e.target.value = ''
+              }}
+              style={{
+                width:52, height:20, textAlign:'center', padding:'0 2px',
+                background:'var(--panel)', border:'1px solid var(--border)',
+                color:'var(--gold)', borderRadius:3, outline:'none',
+                fontFamily:"'Bebas Neue',monospace", fontSize:14, lineHeight:1,
+              }}
+              onFocus={e => { e.target.style.borderColor = 'var(--gold)'; e.target.select() }}
+            />
           </div>
 
           <div className={styles.colJersey}>
@@ -435,11 +504,24 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
     setRows(prev => {
       if (swapIdx < 0 || swapIdx >= prev.length) return prev
       const next = [...prev]
-      // Swap the two rows, but keep spot numbers in place
       const tmp = { ...next[swapIdx], spot: next[swapIdx].spot }
       next[swapIdx] = { ...next[idx], spot: next[swapIdx].spot }
       next[idx]     = { ...tmp, spot: next[idx].spot }
       return next
+    })
+  }
+
+  function moveToPosition(fromIdx, toSpot) {
+    // toSpot is 1-based batting order number
+    const toIdx = toSpot - 1
+    setRows(prev => {
+      if (toIdx < 0 || toIdx >= prev.length || toIdx === fromIdx) return prev
+      const next = [...prev]
+      // Remove player from current position, insert at target
+      const [moved] = next.splice(fromIdx, 1)
+      next.splice(toIdx, 0, moved)
+      // Re-number spots sequentially
+      return next.map((r, i) => ({ ...r, spot: i + 1 }))
     })
   }
 
@@ -537,7 +619,7 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
 
       <div className={styles.playerHeaderRow}>
         <div className={styles.colOrder}>SPOT</div>
-        <div style={{width:40, flexShrink:0}}></div>
+        <div style={{width:72, flexShrink:0, fontFamily:"'Share Tech Mono',monospace", fontSize:7, color:'var(--text-dim)', letterSpacing:1}}>MOVE TO</div>
         <div className={styles.colJersey}>JERSEY</div>
         <div className={styles.colName}>NAME</div>
         <div className={styles.colPos}>POS</div>
@@ -551,30 +633,63 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
             {row.position === 'FLEX' && <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:7,color:'var(--purple)',display:'block',letterSpacing:1}}>FLEX</span>}
             {row.position === 'EH' && <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:7,color:'var(--cyan)',display:'block',letterSpacing:1}}>EH</span>}
           </div>
-          {/* ↑↓ reorder buttons */}
-          <div style={{width:40, flexShrink:0, display:'flex', flexDirection:'column', gap:2, alignItems:'center', justifyContent:'center'}}>
-            <button
-              onClick={() => moveRow(i, -1)}
-              disabled={i === 0}
-              style={{
-                width:28, height:18, padding:0, border:'1px solid var(--border)',
-                background: i===0 ? 'transparent' : 'rgba(255,255,255,0.04)',
-                color: i===0 ? 'var(--text-dim)' : 'var(--text-secondary)',
-                borderRadius:3, cursor: i===0 ? 'default' : 'pointer',
-                fontFamily:"'Share Tech Mono',monospace", fontSize:10, lineHeight:1,
+          {/* ↑↓ buttons + direct position input */}
+          <div style={{width:72, flexShrink:0, display:'flex', flexDirection:'column', gap:2, alignItems:'center', justifyContent:'center'}}>
+            <div style={{display:'flex', gap:2}}>
+              <button
+                onClick={() => moveRow(i, -1)}
+                disabled={i === 0}
+                style={{
+                  width:28, height:18, padding:0, border:'1px solid var(--border)',
+                  background: i===0 ? 'transparent' : 'rgba(255,255,255,0.04)',
+                  color: i===0 ? 'var(--text-dim)' : 'var(--text-secondary)',
+                  borderRadius:3, cursor: i===0 ? 'default' : 'pointer',
+                  fontFamily:"'Share Tech Mono',monospace", fontSize:10, lineHeight:1,
+                }}
+              >▲</button>
+              <button
+                onClick={() => moveRow(i, 1)}
+                disabled={i === rows.length - 1}
+                style={{
+                  width:28, height:18, padding:0, border:'1px solid var(--border)',
+                  background: i===rows.length-1 ? 'transparent' : 'rgba(255,255,255,0.04)',
+                  color: i===rows.length-1 ? 'var(--text-dim)' : 'var(--text-secondary)',
+                  borderRadius:3, cursor: i===rows.length-1 ? 'default' : 'pointer',
+                  fontFamily:"'Share Tech Mono',monospace", fontSize:10, lineHeight:1,
+                }}
+              >▼</button>
+            </div>
+            {/* Direct jump-to input: type a spot number + Enter */}
+            <input
+              type="number"
+              min={1}
+              max={rows.length}
+              placeholder={String(i + 1)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  const val = parseInt(e.target.value)
+                  if (!isNaN(val) && val >= 1 && val <= rows.length) {
+                    moveToPosition(i, val)
+                    e.target.value = ''
+                    e.target.blur()
+                  }
+                }
               }}
-            >▲</button>
-            <button
-              onClick={() => moveRow(i, 1)}
-              disabled={i === rows.length - 1}
-              style={{
-                width:28, height:18, padding:0, border:'1px solid var(--border)',
-                background: i===rows.length-1 ? 'transparent' : 'rgba(255,255,255,0.04)',
-                color: i===rows.length-1 ? 'var(--text-dim)' : 'var(--text-secondary)',
-                borderRadius:3, cursor: i===rows.length-1 ? 'default' : 'pointer',
-                fontFamily:"'Share Tech Mono',monospace", fontSize:10, lineHeight:1,
+              onBlur={e => {
+                const val = parseInt(e.target.value)
+                if (!isNaN(val) && val >= 1 && val <= rows.length) {
+                  moveToPosition(i, val)
+                }
+                e.target.value = ''
               }}
-            >▼</button>
+              style={{
+                width:52, height:20, textAlign:'center', padding:'0 2px',
+                background:'var(--panel)', border:'1px solid var(--border)',
+                color:'var(--gold)', borderRadius:3, outline:'none',
+                fontFamily:"'Bebas Neue',monospace", fontSize:14, lineHeight:1,
+              }}
+              onFocus={e => { e.target.style.borderColor='var(--gold)'; e.target.select() }}
+            />
           </div>
           <div className={styles.colJersey}>
             <input className={styles.cellInput} placeholder="#" value={row.jersey}
