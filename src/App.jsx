@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import './index.css'
 import Header from './components/Header'
 import LeftPanel from './components/LeftPanel'
@@ -463,6 +463,7 @@ export default function App() {
 
   // ── Roster state ─────────────────────────────────────────────────────────────
   const [lineup, setLineup]         = useState([])   // active BATTING lineup (starters only)
+  const lineupRef = useRef([])                         // always-current ref for use in async handlers
   const [subs, setSubs]             = useState([])   // bench / substitutes not yet in lineup
   const [ourLineup, setOurLineup]   = useState([])   // full Lady Hawks roster (starters + subs)
   const [oppLineup, setOppLineup]   = useState([])   // full opponent roster (starters + subs)
@@ -613,6 +614,9 @@ export default function App() {
     console.log(`Rebuilt lineup from PA history: ${rebuilt.length} batters (was ${lineup.length})`)
     setLineup(rebuilt)
   }, [allPAs, oppLineup, topBottom])
+
+  // Keep lineupRef current so async handlers don't capture stale closure
+  lineupRef.current = lineup
 
   // ── Current batter ────────────────────────────────────────────────────────────
   const currentBatter = lineup[lineupPos] || (manualBatterName ? { name: manualBatterName, jersey: '?', batter_type: 'unknown', lineup_order: 0 } : null)
@@ -866,12 +870,13 @@ export default function App() {
         }
 
         // ── Advance to next batter ────────────────────────────────────
-        // lineup already contains only starters (splitLineup handles mode logic)
-        // so we simply cycle through lineup.length — no further filtering needed
-        if (lineup.length > 0) {
-          const nextPos = (lineupPos + 1) % lineup.length
+        // Use lineupRef.current (not lineup) to avoid stale closure capturing
+        // the old array before async state updates settle
+        const currentLineup = lineupRef.current
+        if (currentLineup.length > 0) {
+          const nextPos = (lineupPos + 1) % currentLineup.length
+          console.log(`[ADVANCE] lineupPos ${lineupPos} → ${nextPos} of ${currentLineup.length}`)
           setLineupPos(nextPos)
-          if (nextPos === 0) console.log('Lineup cycling: back to top of order')
         }
 
         // ── Update outs + handle inning change ─────────────────────────
