@@ -852,9 +852,8 @@ export default function App() {
         }
 
         // ── Advance to next batter ────────────────────────────────────
-        // Use lineupRef.current (not lineup) to avoid stale closure capturing
-        // the old array before async state updates settle
         const currentLineup = lineupRef.current
+        console.warn('[BATTER ADVANCE] lineup:', currentLineup.length, 'players | pos', lineupPos, '->', (lineupPos + 1) % Math.max(currentLineup.length,1), '| names:', currentLineup.map(p=>p.name).join(', '))
         if (currentLineup.length > 0) {
           const nextPos = (lineupPos + 1) % currentLineup.length
           setLineupPos(nextPos)
