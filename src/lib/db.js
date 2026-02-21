@@ -42,6 +42,11 @@ export async function getGames(teamId, limit = 20) {
   return rows
 }
 
+export async function deleteGame(gameId) {
+  const { error } = await supabase.from('games').delete().eq('game_id', gameId)
+  if (error) throw error
+}
+
 export async function createGame(teamId, opponent, gameDate, location = '') {
   const { data, error } = await supabase
     .from('games')

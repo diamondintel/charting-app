@@ -9,7 +9,7 @@ import RosterTab from './components/RosterTab'
 import Scorebook from './components/Scorebook'
 import MobileLayout from './components/MobileLayout'
 import {
-  getTeams, getGames, createGame,
+  getTeams, getGames, createGame, deleteGame,
   getOpponentLineup, getPlayers, getPitchers,
   createPA, updatePAResult,
   insertPitch, deletePitch,
@@ -37,7 +37,7 @@ function useWindowWidth() {
 }
 
 // ─── Resume Game Row — shows saved state inline ───────────────────────────────
-function ResumeGameRow({ game, onResume }) {
+function ResumeGameRow({ game, onResume, onDelete }) {
   // game_state is pre-joined from getGames — no extra DB call needed
   const gs = game.game_state   // null if game was never saved
 
@@ -77,14 +77,28 @@ function ResumeGameRow({ game, onResume }) {
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.background = 'rgba(245,166,35,0.1)' }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = borderColor;   e.currentTarget.style.background = bgColor }}
     >
-      {/* Row 1: opponent + date */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15, color: isActive ? 'var(--gold)' : 'var(--text-primary)' }}>
+      {/* Row 1: opponent + date + delete */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 15, color: isActive ? 'var(--gold)' : 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           vs {game.opponent}
         </span>
-        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: 'var(--text-dim)' }}>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: 'var(--text-dim)', flexShrink: 0 }}>
           {game.game_date}
         </span>
+        {onDelete && (
+          <button
+            onClick={e => onDelete(e, game.game_id)}
+            title="Delete game"
+            style={{
+              flexShrink: 0, width: 18, height: 18, padding: 0, lineHeight: 1,
+              background: 'transparent', border: '1px solid transparent',
+              color: 'var(--text-dim)', borderRadius: 3, cursor: 'pointer', fontSize: 11,
+              transition: 'all 0.1s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.borderColor = 'var(--red)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.borderColor = 'transparent' }}
+          >✕</button>
+        )}
       </div>
 
       {/* Row 2: save state badges */}
@@ -125,6 +139,7 @@ function ResumeGameRow({ game, onResume }) {
 function SetupScreen({ onGameReady }) {
   const [teams, setTeams]               = useState([])
   const [games, setGames]               = useState([])
+  const [showAllGames, setShowAllGames] = useState(false)
   const [pitchers, setPitchers]         = useState([])
   const [selectedTeam, setSelectedTeam] = useState(null)
   const [selectedPitcher, setSelectedPitcher] = useState(null)
@@ -155,12 +170,19 @@ function SetupScreen({ onGameReady }) {
   }
 
   async function handleResumeGame(game) {
-    // game_state is pre-joined from getGames; use it directly to avoid extra round-trip
-    // Fall back to a fresh loadGameState call in case the join was null but data exists
     const savedState = game.game_state
       ? game.game_state
       : await loadGameState(game.game_id).catch(() => null)
     onGameReady({ team: selectedTeam, game, pitcher: selectedPitcher, savedState })
+  }
+
+  async function handleDeleteGame(e, gameId) {
+    e.stopPropagation()
+    if (!confirm('Delete this game and all its pitch data?')) return
+    try {
+      await deleteGame(gameId)
+      setGames(gs => gs.filter(g => g.game_id !== gameId))
+    } catch(err) { alert('Delete failed: ' + err.message) }
   }
 
   if (loading) return (
@@ -309,14 +331,42 @@ function SetupScreen({ onGameReady }) {
               </div>
             </div>
 
-            {games.length > 0 && (
-              <div style={{ borderTop:'1px solid var(--border)', paddingTop:16 }}>
-                <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, letterSpacing:3, color:'var(--text-dim)', marginBottom:10 }}>RESUME GAME</div>
-                {games.map(g => (
-                  <ResumeGameRow key={g.game_id} game={g} onResume={handleResumeGame} />
-                ))}
-              </div>
-            )}
+            {games.length > 0 && (() => {
+              const SHOW = 3
+              const visible = showAllGames ? games : games.slice(0, SHOW)
+              const hasMore = games.length > SHOW
+              return (
+                <div style={{ borderTop:'1px solid var(--border)', paddingTop:16 }}>
+                  <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, letterSpacing:3, color:'var(--text-dim)', marginBottom:10 }}>
+                    RESUME GAME <span style={{ color:'var(--amber)' }}>({games.length})</span>
+                  </div>
+                  {visible.map(g => (
+                    <ResumeGameRow
+                      key={g.game_id}
+                      game={g}
+                      onResume={handleResumeGame}
+                      onDelete={handleDeleteGame}
+                    />
+                  ))}
+                  {hasMore && (
+                    <button
+                      onClick={() => setShowAllGames(v => !v)}
+                      style={{
+                        width:'100%', padding:'7px 0', marginTop:2,
+                        background:'transparent', border:'1px solid var(--border)',
+                        color:'var(--text-dim)', borderRadius:4, cursor:'pointer',
+                        fontFamily:"'Share Tech Mono', monospace", fontSize:9, letterSpacing:2,
+                        transition:'all 0.15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                    >
+                      {showAllGames ? '▲ SHOW LESS' : `▼ SHOW ${games.length - SHOW} MORE`}
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
           </>
         )}
       </div>
