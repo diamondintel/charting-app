@@ -490,13 +490,18 @@ export default function App() {
   function splitLineup(players, mode) {
     const BATTING_COUNTS = { standard: 9, dp_flex: 9, eh: 10, dp_flex_eh: 10, free_sub: Infinity }
     const batCount = BATTING_COUNTS[mode] ?? 9
-    // Players with lineup_order 1..batCount are starters; 0 or > batCount are subs
-    const starters = players
-      .filter(p => p.lineup_order >= 1 && p.lineup_order <= batCount)
-      .sort((a, b) => a.lineup_order - b.lineup_order)
-    const bench = players
-      .filter(p => !p.lineup_order || p.lineup_order > batCount || p.lineup_order === 0)
-      .sort((a, b) => (a.lineup_order || 99) - (b.lineup_order || 99))
+
+    // Sort everyone by lineup_order (nulls/0 go last)
+    const sorted = [...players].sort((a, b) => {
+      const ao = a.lineup_order || 999
+      const bo = b.lineup_order || 999
+      return ao - bo
+    })
+
+    // Take first batCount as starters — tolerates sparse/wrong lineup_order values.
+    // If fewer players than batCount exist, all of them are starters (no bench).
+    const starters = sorted.slice(0, batCount === Infinity ? sorted.length : batCount)
+    const bench    = sorted.slice(batCount === Infinity ? sorted.length : batCount)
     return { starters, bench }
   }
 
@@ -826,18 +831,11 @@ export default function App() {
           setOn1b(true)
         }
 
-        // ── Advance to next batter (NFHS lineup-mode aware) ────────────
+        // ── Advance to next batter ────────────────────────────────────
+        // lineup already contains only starters (splitLineup handles mode logic)
+        // so we simply cycle through lineup.length — no further filtering needed
         if (lineup.length > 0) {
-          // battingCount = how many slots actually bat
-          // dp_flex: FLEX (slot 9) does NOT bat unless subbed for DP — cycle through 9
-          // dp_flex_eh: FLEX (slot 10) does NOT bat — cycle through 10
-          // free_sub / eh / standard: cycle full lineup length
-          const battingCount =
-            lineupMode === 'dp_flex'     ? Math.min(9, lineup.length) :
-            lineupMode === 'dp_flex_eh'  ? Math.min(10, lineup.length) :
-            lineup.length  // standard, eh, free_sub all cycle full list
-
-          let nextPos = (lineupPos + 1) % battingCount
+          const nextPos = (lineupPos + 1) % lineup.length
           setLineupPos(nextPos)
           if (nextPos === 0) console.log('Lineup cycling: back to top of order')
         }
