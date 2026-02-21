@@ -7,6 +7,7 @@ import RightPanel from './components/RightPanel'
 import BottomConsole from './components/BottomConsole'
 import RosterTab from './components/RosterTab'
 import Scorebook from './components/Scorebook'
+import MobileLayout from './components/MobileLayout'
 import {
   getTeams, getGames, createGame,
   getOpponentLineup, getPlayers, getPitchers,
@@ -22,6 +23,17 @@ import {
 } from './lib/analytics'
 
 const DEFAULT_ARSENAL = ['Fastball', 'Changeup', 'Drop']
+
+// ─── Responsive hook ──────────────────────────────────────────────────────────
+function useWindowWidth() {
+  const [width, setWidth] = useState(window.innerWidth)
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  return width
+}
 
 // ─── Setup Screen ─────────────────────────────────────────────────────────────
 function SetupScreen({ onGameReady }) {
@@ -230,6 +242,70 @@ function SetupScreen({ onGameReady }) {
   )
 }
 
+// ─── Half Inning Modal ────────────────────────────────────────────────────────
+function HalfInningModal({ modal, topBottom, ourLineup, onChoice }) {
+  if (!modal) return null
+  return (
+    <div style={{
+      position:'fixed', inset:0, background:'rgba(5,12,20,0.88)',
+      backdropFilter:'blur(4px)', zIndex:300,
+      display:'flex', alignItems:'center', justifyContent:'center',
+    }}>
+      <div style={{
+        background:'#0C1C2E', border:'1px solid #1A3550',
+        borderRadius:12, padding:32, width:'min(420px, 90vw)', textAlign:'center',
+      }}>
+        <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:10, letterSpacing:3, color:'#7BACC8', marginBottom:8 }}>
+          {topBottom === 'top' ? `END OF TOP ${modal.inning}` : `END OF INNING ${modal.inning}`}
+        </div>
+        <div style={{ fontFamily:"'Bebas Neue','Rajdhani',sans-serif", fontSize:40, color:'#F5A623', letterSpacing:4, marginBottom:8 }}>
+          3 OUTS
+        </div>
+        <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:13, color:'#7BACC8', marginBottom:28, lineHeight:1.5 }}>
+          {topBottom === 'top'
+            ? `Inning ${modal.inning} top half complete. What's next?`
+            : `Inning ${modal.inning} complete. Advancing to inning ${modal.nextInning}.`}
+        </div>
+        {topBottom === 'top' ? (
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            <button onClick={() => onChoice('bottom')} style={{
+              background:'rgba(0,212,255,0.12)', border:'1px solid rgba(0,212,255,0.35)',
+              color:'#00D4FF', borderRadius:8, padding:'14px 0', cursor:'pointer',
+              fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:16, letterSpacing:2,
+            }}>
+              ⬇ CHART BOTTOM {modal.inning}
+              <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'#7BACC8', marginTop:2, fontWeight:400, letterSpacing:1 }}>
+                {ourLineup.length > 0 ? `Loads Lady Hawks lineup (${ourLineup.length} players)` : 'Add your roster in the Roster tab first'}
+              </div>
+            </button>
+            <button onClick={() => onChoice('skip')} style={{
+              background:'rgba(245,166,35,0.12)', border:'1px solid rgba(245,166,35,0.35)',
+              color:'#F5A623', borderRadius:8, padding:'14px 0', cursor:'pointer',
+              fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:16, letterSpacing:2,
+            }}>
+              → TOP OF INNING {modal.inning + 1}
+              <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'#7BACC8', marginTop:2, fontWeight:400, letterSpacing:1 }}>
+                Skip to next opponent at-bat (default)
+              </div>
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => onChoice('next')} style={{
+            background:'rgba(245,166,35,0.12)', border:'1px solid rgba(245,166,35,0.35)',
+            color:'#F5A623', borderRadius:8, padding:'14px 0', width:'100%', cursor:'pointer',
+            fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:16, letterSpacing:2,
+          }}>
+            → TOP OF INNING {modal.nextInning}
+            <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'#7BACC8', marginTop:2, fontWeight:400, letterSpacing:1 }}>
+              Continue charting opponent
+            </div>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [session, setSession] = useState(null) // { team, game }
@@ -237,6 +313,8 @@ export default function App() {
   const [activeView, setActiveView] = useState('chart')  // 'chart' | 'scorebook'
   const [showScorebook, setShowScorebook] = useState(false)
   const [showHalfInningModal, setShowHalfInningModal] = useState(null)
+  const windowWidth = useWindowWidth()
+  const isMobile = windowWidth < 1280
 
   // ── Game state ───────────────────────────────────────────────────────────────
   const [balls, setBalls]     = useState(0)
@@ -256,6 +334,8 @@ export default function App() {
   const [oppLineup, setOppLineup]   = useState([])   // opponent roster
   const [lineupPos, setLineupPos]   = useState(0)
   const [manualBatterName, setManualBatterName] = useState('')
+  // LINEUP MODE: 'standard'=9, 'dp_flex'=10 (9 bat), 'eh'=10 (10 bat), 'dp_flex_eh'=11 (10 bat), 'free_sub'=full roster
+  const [lineupMode, setLineupMode] = useState('standard')
   const [pitchers, setPitchers]     = useState([])
   const [arsenal, setArsenal]       = useState(DEFAULT_ARSENAL)
   const [pitcherName, setPitcherName] = useState('')
@@ -333,12 +413,21 @@ export default function App() {
     { pci, lm, prr, gamePitches, batterName: currentBatter?.name }
   )
 
-  // Batter stats today
+  // Batter stats today — full line: AB, H, K, BB
   const batterStats = currentBatter ? (() => {
-    const batterPAs = allPAs.filter(p => p.batter_name === currentBatter.name)
-    const batterPitches = gamePitches.filter(p => p.batter_name === currentBatter.name)
-    const strikeouts = batterPAs.filter(p => p.pa_result === 'CK' || p.pa_result === 'SK').length
-    return { paToday: batterPAs.length, strikeouts }
+    const batterPAs   = allPAs.filter(p => p.batter_name === currentBatter.name)
+    const HIT_SET     = new Set(['Single','Double','Triple','Home Run'])
+    const OUT_SET     = new Set(['CK','SK','IP'])  // AB outcomes (not walk/HBP)
+    const hits        = gamePitches.filter(p =>
+      p.batter_name === currentBatter.name &&
+      p.outcome_basic === 'IP' &&
+      HIT_SET.has(p.outcome_inplay)
+    ).length
+    const strikeouts  = batterPAs.filter(p => ['CK','SK'].includes(p.pa_result)).length
+    const walks       = batterPAs.filter(p => p.pa_result === 'B').length
+    // AB = PAs minus walks, HBP
+    const abs         = batterPAs.filter(p => !['B','HBP'].includes(p.pa_result)).length
+    return { paToday: batterPAs.length, abs, hits, strikeouts, walks }
   })() : null
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -502,24 +591,26 @@ export default function App() {
         // ── Baserunner advancement ──────────────────────────────────────
         const result = inPlayDetail.outcome_inplay
         if (isInPlay) {
+          // Capture current base state before any mutations
+          const was1b = on1b, was2b = on2b, was3b = on3b
           if (result === 'Home Run') {
-            const runsScored = 1 + (on1b ? 1 : 0) + (on2b ? 1 : 0) + (on3b ? 1 : 0)
+            const runsScored = 1 + (was1b ? 1 : 0) + (was2b ? 1 : 0) + (was3b ? 1 : 0)
             setOppRuns(r => r + runsScored)
             setOn1b(false); setOn2b(false); setOn3b(false)
           } else if (result === 'Triple') {
-            const runsScored = (on1b ? 1 : 0) + (on2b ? 1 : 0) + (on3b ? 1 : 0)
+            const runsScored = (was1b ? 1 : 0) + (was2b ? 1 : 0) + (was3b ? 1 : 0)
             setOppRuns(r => r + runsScored)
             setOn1b(false); setOn2b(false); setOn3b(true)
           } else if (result === 'Double') {
-            const runsScored = (on2b ? 1 : 0) + (on3b ? 1 : 0)
+            const runsScored = (was2b ? 1 : 0) + (was3b ? 1 : 0)
             setOppRuns(r => r + runsScored)
-            setOn1b(false); setOn2b(true); setOn3b(on1b)
+            setOn1b(false); setOn2b(true); setOn3b(was1b)
           } else if (result === 'Single') {
-            const runsScored = (on3b ? 1 : 0)
+            const runsScored = (was3b ? 1 : 0)
             setOppRuns(r => r + runsScored)
-            setOn3b(on2b); setOn2b(false); setOn1b(true)
+            setOn1b(true); setOn2b(was1b); setOn3b(was2b)
           } else if (result === 'Sac Fly') {
-            if (on3b) { setOppRuns(r => r + 1); setOn3b(false) }
+            if (was3b) { setOppRuns(r => r + 1); setOn3b(false) }
           } else if (result === 'Fielder Choice') {
             setOn1b(true)
           } else if (result === 'Error') {
@@ -529,17 +620,28 @@ export default function App() {
             setOppRuns(r => r + inPlayDetail.runs_scored)
           }
         } else if (isWalk || isHBP) {
-          if (on1b && on2b && on3b) { setOppRuns(r => r + 1) }
-          else if (on1b && on2b) { setOn3b(true) }
-          else if (on1b) { setOn2b(true) }
+          // Walk/HBP — force runners with captured state
+          const was1b = on1b, was2b = on2b, was3b = on3b
+          if (was1b && was2b && was3b) { setOppRuns(r => r + 1); }
+          setOn3b(was1b && was2b ? true : was3b)
+          setOn2b(was1b ? true : was2b)
           setOn1b(true)
         }
 
-        // ── Advance to next batter ──────────────────────────────────────
+        // ── Advance to next batter (NFHS lineup-mode aware) ────────────
         if (lineup.length > 0) {
-          const nextPos = (lineupPos + 1) % lineup.length
+          // battingCount = how many slots actually bat
+          // dp_flex: FLEX (slot 9) does NOT bat unless subbed for DP — cycle through 9
+          // dp_flex_eh: FLEX (slot 10) does NOT bat — cycle through 10
+          // free_sub / eh / standard: cycle full lineup length
+          const battingCount =
+            lineupMode === 'dp_flex'     ? Math.min(9, lineup.length) :
+            lineupMode === 'dp_flex_eh'  ? Math.min(10, lineup.length) :
+            lineup.length  // standard, eh, free_sub all cycle full list
+
+          let nextPos = (lineupPos + 1) % battingCount
           setLineupPos(nextPos)
-          if (nextPos === 0) alert('🔁 Lineup wrapping to top of order')
+          if (nextPos === 0) console.log('Lineup cycling: back to top of order')
         }
 
         // ── Update outs + handle inning change ─────────────────────────
@@ -617,6 +719,59 @@ export default function App() {
   const canRecord = !!(selectedZone && selectedPitch && selectedOutcome)
   const canUndo   = paPitches.length > 0
 
+  // ── Shared props bundle for both layouts ─────────────────────────────────────
+  const sharedProps = {
+    balls, strikes, outs, inning, topBottom,
+    on1b, on2b, on3b, onToggleBase: handleToggleBase,
+    ourRuns, oppRuns, onScoreChange: handleScoreChange,
+    onInningChange: () => setShowHalfInningModal({ inning, nextHalf: topBottom === 'top' ? 'bottom' : 'top', nextInning: topBottom === 'bottom' ? inning + 1 : inning }),
+    lineup, lineupPos, onSelectBatter: handleSelectBatter,
+    manualBatterName, onManualBatterName: setManualBatterName,
+    currentBatter, batterStats,
+    lineupMode, onLineupModeChange: setLineupMode,
+    pitchers, pitcherName, onPitcherChange: handlePitcherChange,
+    selectedZone, onSelectZone: setSelectedZone,
+    selectedPitch, onSelectPitch: setSelectedPitch,
+    arsenal, recommendations,
+    selectedOutcome, onSelectOutcome: setSelectedOutcome,
+    inPlayDetail, onInPlayChange: setInPlayDetail,
+    onRecord: handleRecord, onUndo: handleUndo,
+    canRecord, canUndo,
+    paPitches, onNewPA: handleNewPA,
+    signals, pci, reverseSwitch, onApplyRec: handleApplyRec,
+    onRoster: () => setShowRoster(true),
+    onScorebook: () => setActiveView('scorebook'),
+    gamePitches, session,
+    pitcher: pitchers.find(p => p.name === pitcherName) || null,
+    Scorebook,
+  }
+
+  // ── Mobile layout (< 1024px) ──────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden' }}>
+        <Header
+          ourName={session.team.name}
+          oppName={session.game.opponent}
+          ourRuns={ourRuns}
+          oppRuns={oppRuns}
+          inning={inning}
+          topBottom={topBottom}
+          onScoreChange={handleScoreChange}
+          onInningChange={() => setShowHalfInningModal({ inning, nextHalf: topBottom === 'top' ? 'bottom' : 'top', nextInning: topBottom === 'bottom' ? inning + 1 : inning })}
+          pitcherName={pitcherName}
+          pitchers={pitchers}
+          onPitcherChange={handlePitcherChange}
+          pitchCount={gamePitches.length}
+        />
+        <MobileLayout {...sharedProps} />
+        {showRoster && <RosterTab session={session} onClose={handleRosterClose} lineupMode={lineupMode} />}
+        {showHalfInningModal && <HalfInningModal modal={showHalfInningModal} topBottom={topBottom} ourLineup={ourLineup} onChoice={handleHalfInning} />}
+      </div>
+    )
+  }
+
+  // ── Desktop layout (>= 1024px) ────────────────────────────────────────────────
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden' }}>
       <Header
@@ -631,6 +786,7 @@ export default function App() {
         pitcherName={pitcherName}
         pitchers={pitchers}
         onPitcherChange={handlePitcherChange}
+        pitchCount={gamePitches.length}
       />
 
       {/* View toggle bar */}
@@ -678,6 +834,8 @@ export default function App() {
           onManualBatterName={setManualBatterName}
           paPitches={paPitches}
           batterStats={batterStats}
+          lineupMode={lineupMode}
+          onLineupModeChange={setLineupMode}
         />
 
         <CenterPanel
@@ -705,7 +863,7 @@ export default function App() {
       </div>
       )} {/* end chart/scorebook ternary */}
 
-      {showRoster && <RosterTab session={session} onClose={handleRosterClose} />}
+      {showRoster && <RosterTab session={session} onClose={handleRosterClose} lineupMode={lineupMode} />}
 
       {showScorebook && (
         <Scorebook
@@ -721,89 +879,7 @@ export default function App() {
         />
       )}
 
-      {/* Half-inning transition modal */}
-      {showHalfInningModal && (
-        <div style={{
-          position:'fixed', inset:0, background:'rgba(5,12,20,0.88)',
-          backdropFilter:'blur(4px)', zIndex:300,
-          display:'flex', alignItems:'center', justifyContent:'center',
-        }}>
-          <div style={{
-            background:'#0C1C2E', border:'1px solid #1A3550',
-            borderRadius:12, padding:32, width:420, textAlign:'center',
-          }}>
-            {/* Inning title */}
-            <div style={{
-              fontFamily:"'Share Tech Mono', monospace",
-              fontSize:10, letterSpacing:3, color:'#7BACC8', marginBottom:8,
-            }}>
-              {topBottom === 'top' ? `END OF TOP ${showHalfInningModal.inning}` : `END OF INNING ${showHalfInningModal.inning}`}
-            </div>
-            <div style={{
-              fontFamily:"'Bebas Neue', sans-serif",
-              fontSize:40, color:'#F5A623', letterSpacing:4, marginBottom:8,
-            }}>
-              3 OUTS
-            </div>
-            <div style={{
-              fontFamily:"'DM Sans', sans-serif",
-              fontSize:13, color:'#7BACC8', marginBottom:28, lineHeight:1.5,
-            }}>
-              {topBottom === 'top'
-                ? `Inning ${showHalfInningModal.inning} top half complete. What's next?`
-                : `Inning ${showHalfInningModal.inning} complete. Advancing to inning ${showHalfInningModal.nextInning}.`
-              }
-            </div>
-
-            {topBottom === 'top' ? (
-              /* End of top — offer to chart bottom or skip to next inning */
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                <button
-                  onClick={() => handleHalfInning('bottom')}
-                  style={{
-                    background:'rgba(0,212,255,0.12)', border:'1px solid rgba(0,212,255,0.35)',
-                    color:'#00D4FF', borderRadius:8, padding:'14px 0', cursor:'pointer',
-                    fontFamily:"'Rajdhani', sans-serif", fontWeight:700, fontSize:16, letterSpacing:2,
-                  }}
-                >
-                  ⬇ CHART BOTTOM {showHalfInningModal.inning}
-                  <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, color:'#7BACC8', marginTop:2, fontWeight:400, letterSpacing:1 }}>
-                    {ourLineup.length > 0 ? `Loads Lady Hawks lineup (${ourLineup.length} players)` : 'Add your roster in the Roster tab first'}
-                  </div>
-                </button>
-                <button
-                  onClick={() => handleHalfInning('skip')}
-                  style={{
-                    background:'rgba(245,166,35,0.12)', border:'1px solid rgba(245,166,35,0.35)',
-                    color:'#F5A623', borderRadius:8, padding:'14px 0', cursor:'pointer',
-                    fontFamily:"'Rajdhani', sans-serif", fontWeight:700, fontSize:16, letterSpacing:2,
-                  }}
-                >
-                  → TOP OF INNING {showHalfInningModal.inning + 1}
-                  <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, color:'#7BACC8', marginTop:2, fontWeight:400, letterSpacing:1 }}>
-                    Skip to next opponent at-bat (default)
-                  </div>
-                </button>
-              </div>
-            ) : (
-              /* End of bottom — just advance to next inning */
-              <button
-                onClick={() => handleHalfInning('next')}
-                style={{
-                  background:'rgba(245,166,35,0.12)', border:'1px solid rgba(245,166,35,0.35)',
-                  color:'#F5A623', borderRadius:8, padding:'14px 0', width:'100%', cursor:'pointer',
-                  fontFamily:"'Rajdhani', sans-serif", fontWeight:700, fontSize:16, letterSpacing:2,
-                }}
-              >
-                → TOP OF INNING {showHalfInningModal.nextInning}
-                <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, color:'#7BACC8', marginTop:2, fontWeight:400, letterSpacing:1 }}>
-                  Continue charting opponent
-                </div>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      <HalfInningModal modal={showHalfInningModal} topBottom={topBottom} ourLineup={ourLineup} onChoice={handleHalfInning} />
 
       <BottomConsole
         selectedOutcome={selectedOutcome}

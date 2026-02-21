@@ -7,9 +7,18 @@ import {
 } from '../lib/db'
 
 const BATTER_TYPES = ['unknown', 'power', 'contact', 'slapper']
-const POSITIONS    = ['P','C','1B','2B','3B','SS','LF','CF','RF','DP','FLEX']
+const POSITIONS    = ['P','C','1B','2B','3B','SS','LF','CF','RF','DP','FLEX','EH','EP']
 const DEFAULT_ARSENAL = ['Fastball', 'Changeup', 'Drop']
 const ALL_PITCHES  = ['Fastball','Changeup','Drop','Rise','Curve','Screw','Drop-Curve']
+
+// Batting count per lineup mode (mirrors App.jsx / MobileLayout.jsx)
+const LINEUP_MODE_CONFIG = {
+  standard:   { batters: 9,  label: 'Standard 9',        desc: '9 bat · 9 play defense' },
+  dp_flex:    { batters: 9,  label: 'DP / Flex',          desc: '10 on card · 9 bat · FLEX listed 10th (no bat unless sub)' },
+  eh:         { batters: 10, label: 'EH (10 bat)',         desc: '10 bat · 9 play defense · EH offense only' },
+  dp_flex_eh: { batters: 10, label: 'DP / Flex + EH',     desc: '11 on card · 10 bat · FLEX listed last (no bat unless sub)' },
+  free_sub:   { batters: 0,  label: 'Free Sub / Roster',  desc: 'Full roster bats · batting order fixed' },
+}
 
 // ── Small reusable components ─────────────────────────────────────────────────
 
@@ -343,8 +352,17 @@ function OurRoster({ teamId, onRosterChange }) {
 
 // ── Opponent Lineup Section ───────────────────────────────────────────────────
 
-function OpponentLineup({ teamId, opponentName }) {
-  const EMPTY_ROWS = Array.from({ length: 9 }, (_, i) => ({ spot: i+1, name:'', jersey:'', batter_type:'unknown', position:'' }))
+function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
+  const cfg = LINEUP_MODE_CONFIG[lineupMode] || LINEUP_MODE_CONFIG.standard
+  // How many lineup slots to show — free_sub defaults to 12 (full roster, coach adds more)
+  const slotCount = cfg.batters > 0 ? cfg.batters : 12
+  // In dp_flex we show 10 slots (9 bat + 1 FLEX); in dp_flex_eh show 11 (10 bat + 1 FLEX)
+  const totalSlots = lineupMode === 'dp_flex' ? 10 : lineupMode === 'dp_flex_eh' ? 11 : slotCount
+  const EMPTY_ROWS = Array.from({ length: totalSlots }, (_, i) => {
+    const isFlex = (lineupMode === 'dp_flex' && i === 9) || (lineupMode === 'dp_flex_eh' && i === 10)
+    const isEH   = lineupMode === 'dp_flex_eh' && i === 9
+    return { spot: i+1, name:'', jersey:'', batter_type:'unknown', position: isFlex ? 'FLEX' : isEH ? 'EH' : '' }
+  })
 
   const [rows, setRows]         = useState(EMPTY_ROWS)
   const [loading, setLoading]   = useState(true)
@@ -368,11 +386,13 @@ function OpponentLineup({ teamId, opponentName }) {
     try {
       const players = await getOpponentLineup(teamId, opponentName)
       if (players.length > 0) {
-        const populated = Array.from({ length: Math.max(9, players.length) }, (_, i) => {
+        const populated = Array.from({ length: Math.max(totalSlots, players.length) }, (_, i) => {
           const p = players.find(x => x.lineup_order === i+1) || players[i]
+          const isFlex = (lineupMode === 'dp_flex' && i === 9) || (lineupMode === 'dp_flex_eh' && i === 10)
+          const isEH   = lineupMode === 'dp_flex_eh' && i === 9
           return p
-            ? { spot: i+1, name: p.name, jersey: p.jersey||'', batter_type: p.batter_type||'unknown', position: p.position||'', player_id: p.player_id }
-            : { spot: i+1, name:'', jersey:'', batter_type:'unknown', position:'' }
+            ? { spot: i+1, name: p.name, jersey: p.jersey||'', batter_type: p.batter_type||'unknown', position: p.position||isFlex?'FLEX':isEH?'EH':'', player_id: p.player_id }
+            : { spot: i+1, name:'', jersey:'', batter_type:'unknown', position: isFlex?'FLEX':isEH?'EH':'' }
         })
         setRows(populated)
       }
@@ -448,7 +468,15 @@ function OpponentLineup({ teamId, opponentName }) {
   return (
     <div className={styles.section}>
       <div className={styles.sectionHeader}>
-        <SectionLabel>OPPONENT LINEUP — {opponentName.toUpperCase()}</SectionLabel>
+        <div>
+          <SectionLabel>OPPONENT LINEUP — {opponentName.toUpperCase()}</SectionLabel>
+          <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--gold)', marginTop:2, letterSpacing:1 }}>
+            {cfg.label} · {totalSlots} slots
+            {(lineupMode==='dp_flex'||lineupMode==='dp_flex_eh') && (
+              <span style={{color:'var(--purple)', marginLeft:6}}>FLEX in slot {totalSlots}</span>
+            )}
+          </div>
+        </div>
         <div className={styles.headerBtns}>
           <button className={styles.saveBtn} onClick={handleSave} disabled={saving}>
             {saving ? 'SAVING...' : '✓ SAVE LINEUP'}
@@ -466,10 +494,12 @@ function OpponentLineup({ teamId, opponentName }) {
             value={selectedDbTeam}
             onChange={e => setSelectedDbTeam(e.target.value)}
           >
-            <option value="">— Select a team —</option>
-            {allTeams.map(t => (
-              <option key={t.team_id} value={t.team_id}>{t.name}</option>
-            ))}
+            <option value="">— Select opponent team —</option>
+            {allTeams
+              .filter(t => t.team_id !== teamId)
+              .map(t => (
+                <option key={t.team_id} value={t.team_id}>{t.name}</option>
+              ))}
           </select>
           <button
             className={styles.loadDbBtn}
@@ -480,7 +510,8 @@ function OpponentLineup({ teamId, opponentName }) {
           </button>
         </div>
         <div className={styles.loadFromDbHint}>
-          Loads the selected team's roster into the lineup slots below. You can then reorder or edit before saving.
+          Loads the selected team's roster into the lineup. You can reorder or edit before saving.
+          Current mode: <strong style={{color:'var(--gold)'}}>{cfg.label}</strong> — {cfg.desc}.
         </div>
       </div>
 
@@ -498,6 +529,8 @@ function OpponentLineup({ teamId, opponentName }) {
         <div key={i} className={styles.playerRow}>
           <div className={styles.colOrder}>
             <span className={styles.spotNum}>{row.spot}</span>
+            {row.position === 'FLEX' && <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:7,color:'var(--purple)',display:'block',letterSpacing:1}}>FLEX</span>}
+            {row.position === 'EH' && <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:7,color:'var(--cyan)',display:'block',letterSpacing:1}}>EH</span>}
           </div>
           <div className={styles.colJersey}>
             <input className={styles.cellInput} placeholder="#" value={row.jersey}
@@ -531,8 +564,9 @@ function OpponentLineup({ teamId, opponentName }) {
 
 // ── Main RosterTab ────────────────────────────────────────────────────────────
 
-export default function RosterTab({ session, onClose }) {
+export default function RosterTab({ session, onClose, lineupMode = 'standard' }) {
   const [tab, setTab] = useState('ours')
+  const cfg = LINEUP_MODE_CONFIG[lineupMode] || LINEUP_MODE_CONFIG.standard
 
   if (!session) return null
 
@@ -541,7 +575,16 @@ export default function RosterTab({ session, onClose }) {
       <div className={styles.panel}>
         <div className={styles.header}>
           <div className={styles.headerTitle}>ROSTER MANAGEMENT</div>
-          <div className={styles.headerSub}>{session.team.name}</div>
+          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+            <div className={styles.headerSub}>{session.team.name}</div>
+            <span style={{
+              fontFamily:"'Share Tech Mono',monospace", fontSize:9, letterSpacing:1,
+              color:'var(--gold)', background:'rgba(245,166,35,0.1)',
+              border:'1px solid rgba(245,166,35,0.3)', borderRadius:3, padding:'2px 8px'
+            }}>
+              {cfg.label}
+            </span>
+          </div>
           <button className={styles.closeBtn} onClick={onClose}>✕ CLOSE</button>
         </div>
 
@@ -557,7 +600,7 @@ export default function RosterTab({ session, onClose }) {
         <div className={styles.body}>
           {tab === 'ours'
             ? <OurRoster teamId={session.team.team_id} />
-            : <OpponentLineup teamId={session.team.team_id} opponentName={session.game.opponent} />
+            : <OpponentLineup teamId={session.team.team_id} opponentName={session.game.opponent} lineupMode={lineupMode} />
           }
         </div>
       </div>
