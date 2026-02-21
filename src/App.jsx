@@ -522,12 +522,10 @@ export default function App() {
           getPitchers(team.team_id),
         ])
 
-        console.warn(`[LINEUP LOAD] "${game.opponent}": ${oppPlayers.length} players in DB`)
-        oppPlayers.forEach((p,i) => console.log(`  ${i+1}. order=${p.lineup_order} name="${p.name}"`))
+  
 
         const mode = savedState?.lineup_mode ?? lineupMode
         const { starters, bench } = splitLineup(oppPlayers, mode)
-        console.warn(`[LINEUP SPLIT] starters=${starters.length} bench=${bench.length} mode=${mode}`)
 
         setOppLineup(oppPlayers)
         setOurLineup(ourPlayers)
@@ -859,7 +857,6 @@ export default function App() {
         const currentLineup = lineupRef.current
         if (currentLineup.length > 0) {
           const nextPos = (lineupPos + 1) % currentLineup.length
-          console.log(`[ADVANCE] lineupPos ${lineupPos} → ${nextPos} of ${currentLineup.length}`)
           setLineupPos(nextPos)
         }
 
