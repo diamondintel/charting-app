@@ -3,15 +3,24 @@ import { supabase } from './supabase'
 // ─── Teams ────────────────────────────────────────────────────────────────────
 
 export async function getTeams() {
-  const { data, error } = await supabase.from('teams').select('*').order('name')
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data, error } = await supabase.from('teams').select('*')
+    .eq('user_id', user?.id)
+    .order('name')
   if (error) throw error
   return data || []
 }
 
 export async function getOrCreateTeam(name) {
-  const { data: existing } = await supabase.from('teams').select('*').eq('name', name).single()
+  const { data: { user } } = await supabase.auth.getUser()
+  const userId = user?.id
+  // Find existing team owned by this user
+  const { data: existing } = await supabase.from('teams').select('*')
+    .eq('name', name)
+    .eq('user_id', userId)
+    .single()
   if (existing) return existing
-  const { data, error } = await supabase.from('teams').insert({ name }).select().single()
+  const { data, error } = await supabase.from('teams').insert({ name, user_id: userId }).select().single()
   if (error) throw error
   return data
 }

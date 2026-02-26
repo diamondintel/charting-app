@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import AuthScreen from './components/AuthScreen.jsx'
+import { supabase, signOut } from './lib/supabase.js'
 import { useToast } from './components/Toast.jsx'
 import PitcherScoutingReport from './components/PitcherScoutingReport.jsx'
 import GameSummary from './components/GameSummary.jsx'
@@ -142,7 +144,7 @@ function ResumeGameRow({ game, onResume, onDelete }) {
 
 // ─── Setup Screen ─────────────────────────────────────────────────────────────
 // v2
-function SetupScreen({ onGameReady }) {
+function SetupScreen({ onGameReady, onSignOut, authUser }) {
   const [teams, setTeams]               = useState([])
   const [games, setGames]               = useState([])
   const [showAllGames, setShowAllGames] = useState(false)
@@ -206,6 +208,12 @@ function SetupScreen({ onGameReady }) {
       <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:10, color:'var(--text-dim)', letterSpacing:4 }}>
         COMMAND CENTER
       </div>
+      {authUser && (
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+          <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:'var(--text-dim)' }}>{authUser.email}</div>
+          <button onClick={onSignOut} style={{ padding:'4px 14px', background:'transparent', border:'1px solid rgba(61,96,128,0.4)', borderRadius:4, color:'#3D6080', fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1, cursor:'pointer' }}>SIGN OUT</button>
+        </div>
+      )}
 
       {error && <div style={{ color:'var(--red)', fontSize:12, fontFamily:"'Share Tech Mono', monospace" }}>{error}</div>}
 
@@ -466,6 +474,7 @@ function HalfInningModal({ modal, topBottom, ourLineup, onChoice }) {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const toast = useToast()
+  const [authUser, setAuthUser]   = useState(undefined) // undefined=loading, null=logged out, object=logged in
   const [session, setSession] = useState(null) // { team, game, savedState? }
   const [showRoster, setShowRoster] = useState(false)
   const [saveStatus, setSaveStatus] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
@@ -535,6 +544,15 @@ export default function App() {
     const bench    = sorted.slice(batCount === Infinity ? sorted.length : batCount)
     return { starters, bench }
   }
+
+  // ── Auth state listener ──────────────────────────────────────────────────────
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user ?? null))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, authSession) => {
+      setAuthUser(authSession?.user ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   // ── Load roster + pitches when session starts ─────────────────────────────────
   useEffect(() => {
@@ -959,8 +977,24 @@ export default function App() {
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
+  // Auth gate
+  if (authUser === undefined) return (
+    <div style={{ minHeight:'100vh', background:'#050C14', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:11, color:'#3D6080', letterSpacing:3 }}>LOADING…</div>
+    </div>
+  )
+  if (authUser === null) return <AuthScreen />
+
   if (!session) {
-    return <SetupScreen onGameReady={setSession} />
+    return <SetupScreen onGameReady={setSession} onSignOut={handleSignOut} authUser={authUser} />
+  }
+
+  // ── Sign out ──────────────────────────────────────────────────────────────────
+  async function handleSignOut() {
+    await signOut()
+    setSession(null)
+    setAuthUser(null)
+    toast.info('Signed out')
   }
 
   // ── End Game ────────────────────────────────────────────────────────────────
@@ -1090,6 +1124,7 @@ export default function App() {
           onInningChange={() => setShowHalfInningModal({ inning, nextHalf: topBottom === 'top' ? 'bottom' : 'top', nextInning: topBottom === 'bottom' ? inning + 1 : inning })}
           pitcherName={pitcherName}
           pitchers={pitchers}
+          onSignOut={handleSignOut}
           onPitcherChange={handlePitcherChange}
           pitchCount={gamePitches.length}
           saveStatus={saveStatus}

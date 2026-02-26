@@ -1,6 +1,6 @@
 import styles from './Header.module.css'
 
-export default function Header({ ourName, oppName, ourRuns, oppRuns, inning, topBottom, onScoreChange, onInningChange, pitcherName, pitchers, onPitcherChange, pitchCount, saveStatus }) {
+export default function Header({ ourName, oppName, ourRuns, oppRuns, inning, topBottom, onScoreChange, onInningChange, pitcherName, pitchers, onPitcherChange, pitchCount, saveStatus, onSignOut }) {
   // Format pitcher as "A. Groover"
   const pitcherShort = pitcherName ? (() => {
     const parts = pitcherName.trim().split(' ')
@@ -103,6 +103,12 @@ export default function Header({ ourName, oppName, ourRuns, oppRuns, inning, top
 
       {/* Animated separator */}
       <div className={styles.separator} />
+      {/* Sign out */}
+      {onSignOut && (
+        <button onClick={onSignOut} style={{ padding:'4px 10px', background:'transparent', border:'1px solid rgba(61,96,128,0.4)', borderRadius:4, color:'#3D6080', fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1, cursor:'pointer', flexShrink:0, whiteSpace:'nowrap' }}>
+          SIGN OUT
+        </button>
+      )}
     </header>
   )
 }
