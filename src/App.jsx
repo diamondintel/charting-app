@@ -5,6 +5,7 @@ import { useToast } from './components/Toast.jsx'
 import PitcherScoutingReport from './components/PitcherScoutingReport.jsx'
 import GameSummary from './components/GameSummary.jsx'
 import { exportGameSummaryPDF } from './lib/exportPDF.js'
+import { getClaudeRecommendations } from './lib/claudeAI.js'
 import './index.css'
 import Header from './components/Header'
 import LeftPanel from './components/LeftPanel'
@@ -480,6 +481,9 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [hitterNotes, setHitterNotes] = useState({}) // { batterName: { text, tags } }
   const [showGameSummary, setShowGameSummary] = useState(false)
+  const [aiRecs, setAiRecs]         = useState(null)   // Claude API results
+  const [aiLoading, setAiLoading]   = useState(false)  // Claude in-flight
+  const [aiSource, setAiSource]     = useState('rule') // 'rule' | 'claude'
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(null) // null | { reason }
   const [activeView, setActiveView] = useState('chart')  // 'chart' | 'scorebook'
   const [showScorebook, setShowScorebook] = useState(false)
@@ -667,7 +671,8 @@ export default function App() {
   const prr       = computePRR(paPitches, gamePitches.filter(p => p.batter_name === (currentBatter?.name || '')))
   const reverseSwitch = checkReverseSwitch(balls, strikes, pci, currentBatter?.batter_tendency || 'unknown', arsenal, on3b, lm)
 
-  const signals   = generateSignals(paPitches, balls, strikes, currentBatter?.batter_type, {
+  // Rule-based (instant, always available)
+  const ruleSignals = generateSignals(paPitches, balls, strikes, currentBatter?.batter_type, {
     gamePitches,
     batterName:          currentBatter?.name,
     batterPlayer:        currentBatter,
@@ -675,10 +680,47 @@ export default function App() {
     inning, outs, on1b, on2b, on3b, ourRuns, oppRuns,
     allHistoricalPitches: [],
   })
-  const recommendations = generateRecommendations(
+  const ruleRecs = generateRecommendations(
     paPitches, balls, strikes, currentBatter?.batter_type || 'unknown', arsenal,
     { pci, lm, prr, gamePitches, batterName: currentBatter?.name }
   )
+  // Use Claude results if available, fallback to rule-based
+  const signals         = aiRecs?.signals        || ruleSignals
+  const recommendations = aiRecs?.recommendations || ruleRecs
+
+  // ── Claude AI enrichment ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentBatter || !pitcherName || !arsenal.length) return
+    // Clear stale AI results when batter changes
+    setAiRecs(null)
+    setAiSource('rule')
+  }, [currentBatter?.name])
+
+  useEffect(() => {
+    if (!currentBatter || !pitcherName || !arsenal.length) return
+    if (aiLoading) return
+
+    // Trigger Claude on meaningful events: new pitch, new PA, new batter
+    const triggerAI = async () => {
+      setAiLoading(true)
+      const hitterNote = hitterNotes[currentBatter?.name] || null
+      const result = await getClaudeRecommendations({
+        batter: currentBatter,
+        batterType: currentBatter?.batter_type || 'unknown',
+        balls, strikes, outs, inning, topBottom,
+        ourRuns, oppRuns, on1b, on2b, on3b,
+        paPitches, gamePitches, arsenal, pitcherName,
+        pci, hitterNote,
+      })
+      if (result) {
+        setAiRecs(result)
+        setAiSource('claude')
+      }
+      setAiLoading(false)
+    }
+
+    triggerAI()
+  }, [paPitches.length, balls, strikes, currentBatter?.name, inning])
 
   // Batter stats today — full line: AB, H, K, BB
   const batterStats = currentBatter ? (() => {
@@ -1094,7 +1136,7 @@ export default function App() {
     pitchers, pitcherName, onPitcherChange: handlePitcherChange,
     selectedZone, onSelectZone: setSelectedZone,
     selectedPitch, onSelectPitch: setSelectedPitch,
-    arsenal, recommendations,
+    arsenal, recommendations, aiSource, aiLoading, signals,
     selectedOutcome, onSelectOutcome: setSelectedOutcome,
     inPlayDetail, onInPlayChange: setInPlayDetail,
     onRecord: handleRecord, onUndo: handleUndo,
@@ -1204,6 +1246,9 @@ export default function App() {
           onLineupModeChange={setLineupMode}
           subs={subs}
           onSubstitute={handleSubstitution}
+          signals={signals}
+          aiSource={aiSource}
+          aiLoading={aiLoading}
         />
 
         <CenterPanel

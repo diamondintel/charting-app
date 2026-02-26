@@ -1,5 +1,4 @@
 import styles from './LeftPanel.module.css'
-import { generateSignals } from '../lib/analytics'
 
 function BaseDiamond({ on1b, on2b, on3b }) {
   return (
@@ -51,8 +50,10 @@ export default function LeftPanel({
   onLineupModeChange,
   subs = [],
   onSubstitute,
+  signals = [],
+  aiSource = 'rule',
+  aiLoading = false,
 }) {
-  const signals = generateSignals(paPitches, balls, strikes, currentBatter?.batter_type)
   const tc = BATTER_TYPE_COLORS[currentBatter?.batter_type || 'unknown']
 
   return (
@@ -230,7 +231,25 @@ export default function LeftPanel({
 
       {/* ── SIGNAL FEED ── */}
       <div className={`${styles.section} ${styles.signalSection}`}>
-        <div className="section-label">SIGNAL FEED</div>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+          <div className="section-label" style={{ marginBottom:0 }}>SIGNAL FEED</div>
+          <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+            {aiLoading && (
+              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:7, color:'#F5A623', letterSpacing:1, animation:'pulse 1s infinite' }}>
+                ⟳ AI
+              </span>
+            )}
+            <span style={{
+              fontFamily:"'Share Tech Mono',monospace", fontSize:7, letterSpacing:1,
+              padding:'2px 6px', borderRadius:3,
+              background: aiSource === 'claude' ? 'rgba(0,229,160,0.12)' : 'rgba(61,96,128,0.15)',
+              border: `1px solid ${aiSource === 'claude' ? 'rgba(0,229,160,0.3)' : 'rgba(61,96,128,0.3)'}`,
+              color: aiSource === 'claude' ? '#00E5A0' : '#3D6080',
+            }}>
+              {aiSource === 'claude' ? '✦ CLAUDE' : 'RULE-BASED'}
+            </span>
+          </div>
+        </div>
         <div className={styles.signalFeed}>
           {signals.length === 0 && (
             <div className={styles.signalEmpty}>Record pitches to generate signals</div>
