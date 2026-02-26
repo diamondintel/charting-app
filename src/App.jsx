@@ -306,13 +306,15 @@ function SetupScreen({ onGameReady }) {
                                 ))}
                               </div>
                             )}
-                            {/* Notes */}
-                            <button
-                                onClick={e => { e.stopPropagation(); setSelectedPitcher(p); setShowScoutingReport(true) }}
-                                style={{ marginTop:6, padding:'4px 10px', background:'rgba(0,212,255,0.1)', border:'1px solid rgba(0,212,255,0.3)', borderRadius:3, color:'#00D4FF', fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1, cursor:'pointer' }}
+                            {/* Scouting report button — stopPropagation prevents pitcher card selection */}
+                            <div onClick={e => e.stopPropagation()} style={{ marginTop:8 }}>
+                              <button
+                                onClick={() => { setSelectedPitcher(p); setShowScoutingReport(true) }}
+                                style={{ padding:'5px 12px', background:'rgba(0,212,255,0.1)', border:'1px solid rgba(0,212,255,0.35)', borderRadius:4, color:'#00D4FF', fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1, cursor:'pointer', width:'100%' }}
                               >
                                 📊 VIEW SCOUTING REPORT
                               </button>
+                            </div>
                             {p.pitcher_notes && (
                               <div style={{ marginTop:5, fontFamily:"'DM Sans', sans-serif", fontSize:11, color:'var(--text-secondary)', fontStyle:'italic' }}>
                                 {p.pitcher_notes}
