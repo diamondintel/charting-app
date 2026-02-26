@@ -381,6 +381,14 @@ function SetupScreen({ onGameReady }) {
           </>
         )}
       </div>
+      {showScoutingReport && selectedPitcher && selectedTeam && (
+        <PitcherScoutingReport
+          teamId={selectedTeam.team_id}
+          pitcherName={selectedPitcher.name}
+          opponentFilter={opponent}
+          onClose={() => setShowScoutingReport(false)}
+        />
+      )}
     </div>
   )
 }
@@ -448,14 +456,6 @@ function HalfInningModal({ modal, topBottom, ourLineup, onChoice }) {
           </button>
         )}
       </div>
-      {showScoutingReport && selectedPitcher && selectedTeam && (
-        <PitcherScoutingReport
-          teamId={selectedTeam.team_id}
-          pitcherName={selectedPitcher.name}
-          opponentFilter={opponent}
-          onClose={() => setShowScoutingReport(false)}
-        />
-      )}
     </div>
   )
 }
