@@ -311,3 +311,61 @@ export async function loadGameState(gameId) {
   if (error) return null   // no saved state yet — that's fine
   return data
 }
+
+// ─── Hitter Notes ─────────────────────────────────────────────────────────────
+
+export async function saveHitterNote(teamId, opponentName, batterName, note) {
+  const { error } = await supabase
+    .from('hitter_notes')
+    .upsert({
+      team_id:       teamId,
+      opponent_name: opponentName,
+      batter_name:   batterName,
+      note_text:     note.text || '',
+      tags:          note.tags || [],
+      updated_at:    new Date().toISOString(),
+    }, { onConflict: 'team_id,opponent_name,batter_name' })
+  if (error) throw error
+}
+
+export async function getHitterNotes(teamId, opponentName) {
+  const { data, error } = await supabase
+    .from('hitter_notes')
+    .select('*')
+    .eq('team_id', teamId)
+    .eq('opponent_name', opponentName)
+  if (error) throw error
+  return data || []
+}
+
+// ─── Pitcher Scouting Report ──────────────────────────────────────────────────
+
+export async function getPitcherScoutingData(teamId, pitcherName) {
+  // All games where this pitcher threw
+  const { data: games, error: gErr } = await supabase
+    .from('games')
+    .select('game_id, opponent, game_date')
+    .eq('team_id', teamId)
+    .order('game_date', { ascending: false })
+  if (gErr) throw gErr
+
+  const gameIds = games.map(g => g.game_id)
+  if (gameIds.length === 0) return { games: [], pitches: [], pas: [] }
+
+  // All pitches by this pitcher
+  const { data: pitches, error: pErr } = await supabase
+    .from('pitches')
+    .select('*')
+    .in('game_id', gameIds)
+    .eq('pitcher_name', pitcherName)
+  if (pErr) throw pErr
+
+  // All PAs from those games (for results)
+  const { data: pas, error: paErr } = await supabase
+    .from('plate_appearances')
+    .select('*')
+    .in('game_id', gameIds)
+  if (paErr) throw paErr
+
+  return { games, pitches: pitches || [], pas: pas || [] }
+}

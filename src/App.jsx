@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useToast } from './components/Toast.jsx'
+import PitcherScoutingReport from './components/PitcherScoutingReport.jsx'
 import './index.css'
 import Header from './components/Header'
 import LeftPanel from './components/LeftPanel'
@@ -12,6 +14,7 @@ import {
   getTeams, getGames, createGame, deleteGame,
   getOpponentLineup, getPlayers, getPitchers,
   createPA, updatePAResult,
+  saveHitterNote, getHitterNotes,
   insertPitch, deletePitch,
   getPitchesForGame, getPitchesForPA, getPAsForGame,
   saveGameState, loadGameState,
@@ -143,6 +146,7 @@ function SetupScreen({ onGameReady }) {
   const [pitchers, setPitchers]         = useState([])
   const [selectedTeam, setSelectedTeam] = useState(null)
   const [selectedPitcher, setSelectedPitcher] = useState(null)
+  const [showScoutingReport, setShowScoutingReport] = useState(false)
   const [loading, setLoading]           = useState(true)
   const [opponent, setOpponent]         = useState('')
   const [gameDate, setGameDate]         = useState(new Date().toISOString().split('T')[0])
@@ -303,6 +307,12 @@ function SetupScreen({ onGameReady }) {
                               </div>
                             )}
                             {/* Notes */}
+                            <button
+                                onClick={e => { e.stopPropagation(); setSelectedPitcher(p); setShowScoutingReport(true) }}
+                                style={{ marginTop:6, padding:'4px 10px', background:'rgba(0,212,255,0.1)', border:'1px solid rgba(0,212,255,0.3)', borderRadius:3, color:'#00D4FF', fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1, cursor:'pointer' }}
+                              >
+                                📊 VIEW SCOUTING REPORT
+                              </button>
                             {p.pitcher_notes && (
                               <div style={{ marginTop:5, fontFamily:"'DM Sans', sans-serif", fontSize:11, color:'var(--text-secondary)', fontStyle:'italic' }}>
                                 {p.pitcher_notes}
@@ -434,15 +444,25 @@ function HalfInningModal({ modal, topBottom, ourLineup, onChoice }) {
           </button>
         )}
       </div>
+      {showScoutingReport && selectedPitcher && selectedTeam && (
+        <PitcherScoutingReport
+          teamId={selectedTeam.team_id}
+          pitcherName={selectedPitcher.name}
+          opponentFilter={opponent}
+          onClose={() => setShowScoutingReport(false)}
+        />
+      )}
     </div>
   )
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const toast = useToast()
   const [session, setSession] = useState(null) // { team, game, savedState? }
   const [showRoster, setShowRoster] = useState(false)
   const [saveStatus, setSaveStatus] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
+  const [hitterNotes, setHitterNotes] = useState({}) // { batterName: { text, tags } }
   const [activeView, setActiveView] = useState('chart')  // 'chart' | 'scorebook'
   const [showScorebook, setShowScorebook] = useState(false)
   const [showHalfInningModal, setShowHalfInningModal] = useState(null)
@@ -464,6 +484,7 @@ export default function App() {
   // ── Roster state ─────────────────────────────────────────────────────────────
   const [lineup, setLineup]         = useState([])   // active BATTING lineup (starters only)
   const lineupRef = useRef([])                         // always-current ref for use in async handlers
+  const lastLineupPosRef = useRef(0)                   // tracks last batter position across inning boundaries
   const [subs, setSubs]             = useState([])   // bench / substitutes not yet in lineup
   const [ourLineup, setOurLineup]   = useState([])   // full Lady Hawks roster (starters + subs)
   const [oppLineup, setOppLineup]   = useState([])   // full opponent roster (starters + subs)
@@ -554,20 +575,27 @@ export default function App() {
           setOn1b(savedState.on1b ?? false)
           setOn2b(savedState.on2b ?? false)
           setOn3b(savedState.on3b ?? false)
-          setLineupPos(savedState.lineup_pos ?? 0)
+          const restoredPos = savedState.lineup_pos ?? 0
+          setLineupPos(restoredPos)
+          lastLineupPosRef.current = restoredPos  // sync ref so inning transitions use correct position
           setLineupMode(savedState.lineup_mode ?? 'standard')
           if (savedState.pitcher_name) setPitcherName(savedState.pitcher_name)
         }
 
-        // ── Step 3: pitch history (safe now that lineup is established) ─
-        const [pitches, pas] = await Promise.all([
+        // ── Step 3: pitch history + hitter notes ──────────────────────
+        const [pitches, pas, notes] = await Promise.all([
           getPitchesForGame(game.game_id),
           getPAsForGame(game.game_id),
+          getHitterNotes(team.team_id, game.opponent),
         ])
         setGamePitches(pitches)
         setAllPAs(pas)
+        // Convert notes array to map keyed by batter_name
+        const notesMap = {}
+        notes.forEach(n => { notesMap[n.batter_name] = { text: n.note_text, tags: n.tags || [] } })
+        setHitterNotes(notesMap)
 
-      } catch(e) { console.error('Session load failed:', e) }
+      } catch(e) { toast.error(`Failed to load game data: ${e.message}`) }
     }
 
     loadSession()
@@ -590,14 +618,14 @@ export default function App() {
         // Reset to idle after 2s
         setTimeout(() => setSaveStatus('idle'), 2000)
       } catch (e) {
-        console.error('Auto-save failed:', e)
+        toast.warn('Auto-save failed — check connection', { duration: 6000 })
         setSaveStatus('error')
       }
     }, 1500)
     return () => clearTimeout(timer)
   }, [inning, topBottom, outs, ourRuns, oppRuns, on1b, on2b, on3b, lineupPos, pitcherName, lineupMode, activePA])
 
-  // Keep lineupRef current so async handlers don't capture stale closure
+  // Keep refs current so async handlers don't capture stale closures
   lineupRef.current = lineup
 
   // ── Current batter ────────────────────────────────────────────────────────────
@@ -674,12 +702,14 @@ export default function App() {
     if (!m) return
 
     if (choice === 'skip') {
-      // Skip bottom — go to top of next inning, opponent bats
+      // Skip bottom — opponent bats top of next inning, order continues
       setInning(m.nextInning || m.inning + 1)
       setTopBottom('top')
       const { starters: skipStarters, bench: skipBench } = splitLineup(oppLineup, lineupMode)
       setLineup(skipStarters)
       setSubs(skipBench)
+      // Restore the last known position — batting order is continuous across innings
+      setLineupPos(lastLineupPosRef.current)
     } else if (choice === 'bottom') {
       // Chart bottom half — OUR team bats
       setTopBottom('bottom')
@@ -691,22 +721,17 @@ export default function App() {
         setLineup([])
         setSubs([])
       }
+      setLineupPos(0)  // Lady Hawks start fresh each time for now
     } else if (choice === 'next') {
-      // End of bottom — advance to top of next inning, opponent bats
+      // End of bottom — opponent bats top of next inning, order continues
       setInning(m.nextInning || m.inning + 1)
       setTopBottom('top')
       const { starters, bench } = splitLineup(oppLineup, lineupMode)
       setLineup(starters)
       setSubs(bench)
+      // Restore the last known position — batting order is continuous across innings
+      setLineupPos(lastLineupPosRef.current)
     }
-    // Batting order is continuous across innings — never reset lineupPos between innings
-    // of the same team. Only reset when switching from opponent to our team batting.
-    if (choice === 'bottom') {
-      // Our team coming up — reset to wherever Lady Hawks order left off (0 for now)
-      setLineupPos(0)
-    }
-    // 'skip' = opponent back up next inning → lineupPos carries over
-    // 'next' = opponent back up next inning → lineupPos carries over
     setManualBatterName('')
     setActivePA(null)
     setPAPitches([])
@@ -765,7 +790,7 @@ export default function App() {
           batterName, pitcherName, lineupSpot
         )
         setActivePA(pa)
-      } catch (e) { console.error(e); return }
+      } catch (e) { toast.error(`Failed to start plate appearance: ${e.message}`); return }
     }
 
     const pitch = {
@@ -862,6 +887,7 @@ export default function App() {
         const currentLineup = lineupRef.current
         if (currentLineup.length > 0) {
           const nextPos = (lineupPos + 1) % currentLineup.length
+          lastLineupPosRef.current = nextPos   // persist across inning boundaries
           setLineupPos(nextPos)
         }
 
@@ -898,7 +924,7 @@ export default function App() {
       setSelectedOutcome(null)
       setInPlayDetail({ outcome_inplay: '', fielder: '', location: '', runs_scored: 0, rbi: 0 })
       // Keep pitch type selected for quick repeat
-    } catch (e) { console.error(e) }
+    } catch (e) { toast.error(`Failed to record pitch: ${e.message}`) }
   }
 
   async function handleUndo() {
@@ -915,7 +941,7 @@ export default function App() {
       setSelectedZone({ row: last.zone_row, col: last.zone_col })
       setSelectedPitch(last.pitch_type)
       setSelectedOutcome(last.outcome_basic)
-    } catch (e) { console.error(e) }
+    } catch (e) { toast.error(`Undo failed: ${e.message}`) }
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -924,9 +950,21 @@ export default function App() {
     return <SetupScreen onGameReady={setSession} />
   }
 
+  // Save hitter note for current batter
+  async function handleSaveNote(batterName, note) {
+    if (!session) return
+    try {
+      await saveHitterNote(session.team.team_id, session.game.opponent, batterName, note)
+      setHitterNotes(prev => ({ ...prev, [batterName]: note }))
+    } catch(e) {
+      toast.error(`Failed to save note: ${e.message}`)
+    }
+  }
+
   // Reload lineup after roster save
   async function handleRosterClose() {
     setShowRoster(false)
+    toast.success('Roster saved')
     // Reload both lineups after roster edits
     const opp = await getOpponentLineup(session.team.team_id, session.game.opponent).catch(() => [])
     const our = await getPlayers(session.team.team_id).catch(() => [])
@@ -973,6 +1011,7 @@ export default function App() {
     manualBatterName, onManualBatterName: setManualBatterName,
     currentBatter, batterStats,
     lineupMode, onLineupModeChange: setLineupMode,
+    hitterNotes, onSaveNote: handleSaveNote,
     pitchers, pitcherName, onPitcherChange: handlePitcherChange,
     selectedZone, onSelectZone: setSelectedZone,
     selectedPitch, onSelectPitch: setSelectedPitch,

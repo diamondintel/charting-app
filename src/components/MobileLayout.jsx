@@ -43,6 +43,97 @@ const FIELDERS = ['P','C','1B','2B','3B','SS','LF','CF','RF']
 const LOCATIONS = ['Infield','Left','Center','Right','Deep L','Deep C','Deep R']
 
 // ── PITCH TAB ─────────────────────────────────────────────────────────────────
+
+const QUICK_TAGS = ['Struggling', 'Hot streak', 'Bunting', 'Pull hitter', 'Injured', 'Slumping', 'Watch speed']
+
+function HitterNotePanel({ batter, note, onSave, colors: C }) {
+  const [expanded, setExpanded] = React.useState(false)
+  const [draft, setDraft] = React.useState(note)
+  const mono = "'Share Tech Mono', monospace"
+  const sans = "'DM Sans', sans-serif"
+
+  // sync if batter changes
+  React.useEffect(() => { setDraft(note); setExpanded(false) }, [batter?.name])
+
+  function toggleTag(tag) {
+    const tags = draft.tags.includes(tag)
+      ? draft.tags.filter(t => t !== tag)
+      : [...draft.tags, tag]
+    const next = { ...draft, tags }
+    setDraft(next)
+    onSave(next)
+  }
+
+  function handleTextBlur(e) {
+    const next = { ...draft, text: e.target.value }
+    setDraft(next)
+    onSave(next)
+  }
+
+  const hasContent = draft.tags.length > 0 || draft.text?.trim()
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button
+        onClick={() => setExpanded(e => !e)}
+        style={{
+          width: '100%', background: 'transparent',
+          border: `1px solid ${hasContent ? 'rgba(245,166,35,0.4)' : C.border}`,
+          borderRadius: 4, padding: '6px 10px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        <span style={{ fontFamily: mono, fontSize: 8, letterSpacing: 2, color: hasContent ? '#F5A623' : C.dim }}>
+          {hasContent ? `NOTES · ${draft.tags.length > 0 ? draft.tags.join(', ') : draft.text.slice(0,30)} ` : 'ADD NOTES'}
+        </span>
+        <span style={{ color: C.dim, fontSize: 10 }}>{expanded ? '▲' : '▼'}</span>
+      </button>
+
+      {expanded && (
+        <div style={{
+          marginTop: 4, padding: '10px', background: 'rgba(245,166,35,0.06)',
+          border: '1px solid rgba(245,166,35,0.25)', borderRadius: 4,
+        }}>
+          {/* Quick tags */}
+          <div style={{ fontFamily: mono, fontSize: 7, color: C.dim, letterSpacing: 2, marginBottom: 6 }}>QUICK TAGS</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+            {QUICK_TAGS.map(tag => {
+              const active = draft.tags.includes(tag)
+              return (
+                <button key={tag} onClick={() => toggleTag(tag)} style={{
+                  padding: '3px 8px', borderRadius: 3, cursor: 'pointer', fontSize: 10,
+                  fontFamily: sans, fontWeight: active ? 600 : 400,
+                  background: active ? 'rgba(245,166,35,0.2)' : 'transparent',
+                  border: `1px solid ${active ? 'rgba(245,166,35,0.6)' : C.border}`,
+                  color: active ? '#F5A623' : C.dim,
+                }}>
+                  {tag}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Free text */}
+          <div style={{ fontFamily: mono, fontSize: 7, color: C.dim, letterSpacing: 2, marginBottom: 4 }}>NOTES</div>
+          <textarea
+            defaultValue={draft.text}
+            onBlur={handleTextBlur}
+            placeholder="e.g. Likes outside drop, struggles high heat..."
+            rows={2}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: 'rgba(0,0,0,0.3)', border: `1px solid ${C.border}`,
+              borderRadius: 4, padding: '6px 8px', resize: 'none',
+              color: C.pri, fontFamily: sans, fontSize: 11, lineHeight: 1.4,
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PitchTab({
   selectedZone, onSelectZone, selectedPitch, onSelectPitch,
   arsenal, recommendations, selectedOutcome, onSelectOutcome,
@@ -630,6 +721,16 @@ function GameTab({
         <button onClick={onNewPA} style={{ marginTop:8, width:'100%', padding:'10px', borderRadius:6, border:`1px solid ${C.border}`, background:'rgba(255,255,255,0.04)', color:C.sec, fontFamily:mono, fontSize:9, letterSpacing:2, cursor:'pointer' }}>
           + NEW PA
         </button>
+
+        {/* ── HITTER NOTES ── */}
+        {currentBatter && (
+          <HitterNotePanel
+            batter={currentBatter}
+            note={hitterNotes[currentBatter.name] || { text: '', tags: [] }}
+            onSave={note => onSaveNote?.(currentBatter.name, note)}
+            colors={C}
+          />
+        )}
       </div>
 
       {/* ── SUBSTITUTES ── */}
@@ -713,6 +814,7 @@ export default function MobileLayout({
   lineupMode, onLineupModeChange,
   manualBatterName, onManualBatterName,
   currentBatter, batterStats,
+  hitterNotes = {}, onSaveNote,
   pitchers, pitcherName, onPitcherChange,
   // charting
   selectedZone, onSelectZone,
