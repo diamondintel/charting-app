@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import styles from './RosterTab.module.css'
 import {
   getPlayers, getTeams, getPlayersForTeam,
@@ -440,6 +440,12 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
   const [allTeams, setAllTeams] = useState([])
   const [selectedDbTeam, setSelectedDbTeam] = useState('')
   const [loadingDb, setLoadingDb] = useState(false)
+  // OCR state
+  const [ocrLoading, setOcrLoading]   = useState(false)
+  const [ocrError, setOcrError]       = useState(null)
+  const [ocrPreview, setOcrPreview]   = useState(null)  // base64 for preview
+  const [ocrResult, setOcrResult]     = useState(null)  // parsed players array
+  const fileInputRef = React.useRef(null)
 
   useEffect(() => {
     getTeams().then(setAllTeams).catch(console.error)
@@ -493,6 +499,119 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
       setRows(populated)
     } catch(e) { setError(e.message) }
     finally { setLoadingDb(false) }
+  }
+
+  // ── OCR handlers ─────────────────────────────────────────────────────────────
+  async function handleImageSelected(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setOcrError(null)
+    setOcrResult(null)
+
+    // Read as base64
+    const base64 = await new Promise((res, rej) => {
+      const reader = new FileReader()
+      reader.onload = () => res(reader.result.split(',')[1])
+      reader.onerror = rej
+      reader.readAsDataURL(file)
+    })
+
+    // Show preview
+    setOcrPreview(`data:${file.type};base64,${base64}`)
+    setOcrLoading(true)
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 800,
+          messages: [{
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 }
+              },
+              {
+                type: 'text',
+                text: `This is a softball lineup card or screenshot. Extract the batting order.
+
+For each player in batting order, extract:
+- lineup_order: their position in the batting order (1-9 or more)
+- jersey: jersey/number if visible (string, may be empty)
+- name: player name (first + last if available, just last if only one visible)
+- position: fielding position if shown (P, C, 1B, 2B, 3B, SS, LF, CF, RF, DP, FLEX, EH, etc.)
+
+Common formats you might see:
+- Hand-written lineup card with names and numbers
+- GameChanger app screenshot showing batting order
+- Printed tournament lineup sheet
+- Team dugout card
+
+Respond ONLY with a JSON array, no other text:
+[
+  {"lineup_order": 1, "jersey": "12", "name": "Smith J", "position": "SS"},
+  {"lineup_order": 2, "jersey": "7",  "name": "Jones A", "position": "CF"}
+]
+
+If you cannot read any names, return an empty array: []`
+              }
+            ]
+          }]
+        })
+      })
+
+      if (!response.ok) throw new Error(`API error ${response.status}`)
+      const data = await response.json()
+      const text = data.content?.find(b => b.type === 'text')?.text || ''
+      const clean = text.replace(/\`\`\`json|\`\`\`/g, '').trim()
+      const players = JSON.parse(clean)
+
+      if (!Array.isArray(players) || players.length === 0) {
+        setOcrError('No players detected. Try a clearer photo or enter manually.')
+        return
+      }
+
+      setOcrResult(players)
+    } catch(e) {
+      setOcrError(`OCR failed: ${e.message}. Try a clearer photo.`)
+    } finally {
+      setOcrLoading(false)
+      // Reset file input so same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function handleApplyOCR() {
+    if (!ocrResult?.length) return
+    // Merge OCR results into rows — preserve batter_type if already set
+    const updated = Array.from({ length: Math.max(totalSlots, ocrResult.length) }, (_, i) => {
+      const ocr = ocrResult.find(p => p.lineup_order === i + 1) || ocrResult[i]
+      const existing = rows[i]
+      const isFlex = (lineupMode === 'dp_flex' && i === 9) || (lineupMode === 'dp_flex_eh' && i === 10)
+      const isEH   = lineupMode === 'dp_flex_eh' && i === 9
+      if (ocr) {
+        return {
+          spot: i + 1,
+          name: ocr.name || '',
+          jersey: ocr.jersey || '',
+          batter_type: existing?.batter_type || 'unknown',
+          position: ocr.position || (isFlex ? 'FLEX' : isEH ? 'EH' : ''),
+        }
+      }
+      return existing || { spot: i+1, name:'', jersey:'', batter_type:'unknown', position: isFlex?'FLEX':isEH?'EH':'' }
+    })
+    setRows(updated)
+    setOcrResult(null)
+    setOcrPreview(null)
+  }
+
+  function handleDiscardOCR() {
+    setOcrResult(null)
+    setOcrPreview(null)
+    setOcrError(null)
   }
 
   function updateRow(idx, key, val) {
@@ -583,6 +702,84 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
           </button>
           <button className={styles.cancelBtn} onClick={handleClear}>CLEAR ALL</button>
         </div>
+      </div>
+
+      {/* ── Hidden file input ── */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleImageSelected}
+        style={{ display:'none' }}
+      />
+
+      {/* ── OCR / Photo import ── */}
+      <div style={{ padding:'12px 14px', background:'rgba(0,212,255,0.04)', border:'1px solid rgba(0,212,255,0.15)', borderRadius:6, marginBottom:10 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+          <div>
+            <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--cyan)', letterSpacing:2 }}>📷 SCAN LINEUP CARD</div>
+            <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:'var(--text-dim)', marginTop:2 }}>Photo, screenshot, or GameChanger export → auto-fill</div>
+          </div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={ocrLoading}
+            style={{
+              padding:'8px 16px', borderRadius:4, cursor: ocrLoading ? 'not-allowed' : 'pointer',
+              background:'rgba(0,212,255,0.1)', border:'1px solid rgba(0,212,255,0.35)',
+              color:'var(--cyan)', fontFamily:"'Share Tech Mono',monospace", fontSize:9, letterSpacing:1,
+              opacity: ocrLoading ? 0.5 : 1,
+            }}
+          >
+            {ocrLoading ? '⟳ SCANNING…' : '📷 CHOOSE IMAGE'}
+          </button>
+        </div>
+
+        {/* Preview + result */}
+        {ocrPreview && !ocrResult && !ocrError && (
+          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+            <img src={ocrPreview} alt="lineup" style={{ width:80, height:60, objectFit:'cover', borderRadius:4, border:'1px solid var(--border)' }} />
+            {ocrLoading && <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--gold)' }}>Claude is reading the lineup…</div>}
+          </div>
+        )}
+
+        {ocrError && (
+          <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:12, color:'var(--red)', padding:'6px 10px', background:'rgba(255,80,80,0.08)', borderRadius:4, marginTop:4 }}>
+            {ocrError}
+          </div>
+        )}
+
+        {ocrResult && (
+          <div>
+            <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--green)', marginBottom:8 }}>
+              ✓ {ocrResult.length} PLAYERS DETECTED
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:3, marginBottom:10, maxHeight:180, overflowY:'auto' }}>
+              {ocrResult.map((p, i) => (
+                <div key={i} style={{ display:'flex', gap:8, fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:'var(--text-secondary)', alignItems:'center' }}>
+                  <span style={{ color:'var(--gold)', minWidth:16 }}>{p.lineup_order}.</span>
+                  {p.jersey && <span style={{ color:'var(--text-dim)', minWidth:24 }}>#{p.jersey}</span>}
+                  <span style={{ color:'var(--text-primary)' }}>{p.name}</span>
+                  {p.position && <span style={{ color:'var(--cyan)', marginLeft:'auto' }}>{p.position}</span>}
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button
+                onClick={handleApplyOCR}
+                style={{ flex:1, padding:'8px', borderRadius:4, cursor:'pointer', background:'rgba(0,229,160,0.12)', border:'1px solid rgba(0,229,160,0.35)', color:'var(--green)', fontFamily:"'Share Tech Mono',monospace", fontSize:9, letterSpacing:1 }}
+              >
+                ✓ APPLY TO LINEUP
+              </button>
+              <button
+                onClick={handleDiscardOCR}
+                style={{ padding:'8px 14px', borderRadius:4, cursor:'pointer', background:'transparent', border:'1px solid var(--border)', color:'var(--text-dim)', fontFamily:"'Share Tech Mono',monospace", fontSize:9 }}
+              >
+                DISCARD
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Load from database ── */}
