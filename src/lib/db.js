@@ -378,3 +378,49 @@ export async function getPitcherScoutingData(teamId, pitcherName) {
 
   return { games, pitches: pitches || [], pas: pas || [] }
 }
+
+// ─── Historical batter matchup data ───────────────────────────────────────────
+// Returns all pitches + PA results for a specific batter across all games
+export async function getBatterHistoricalData(teamId, batterName, opponentName) {
+  // Get all games vs this opponent
+  const { data: games, error: gErr } = await supabase
+    .from('games')
+    .select('game_id, opponent, game_date')
+    .eq('team_id', teamId)
+    .ilike('opponent', `%${opponentName}%`)
+    .order('game_date', { ascending: false })
+    .limit(10)
+  if (gErr) throw gErr
+  if (!games?.length) return { games: [], pitches: [], pas: [] }
+
+  const gameIds = games.map(g => g.game_id)
+
+  const [{ data: pitches }, { data: pas }] = await Promise.all([
+    supabase.from('pitches').select('*').in('game_id', gameIds).eq('batter_name', batterName),
+    supabase.from('plate_appearances').select('*').in('game_id', gameIds).eq('batter_name', batterName),
+  ])
+
+  return { games, pitches: pitches || [], pas: pas || [] }
+}
+
+// ─── Save AI-generated post-inning summary to hitter_notes ───────────────────
+export async function saveAIBatterSummary(teamId, opponentName, batterName, aiSummary) {
+  // Merge AI summary into existing note
+  const { data: existing } = await supabase
+    .from('hitter_notes')
+    .select('*')
+    .eq('team_id', teamId)
+    .eq('opponent_name', opponentName)
+    .eq('batter_name', batterName)
+    .single()
+    .catch(() => ({ data: null }))
+
+  const updatedNote = existing
+    ? { ...existing, ai_summary: aiSummary, ai_updated_at: new Date().toISOString() }
+    : { team_id: teamId, opponent_name: opponentName, batter_name: batterName, ai_summary: aiSummary, ai_updated_at: new Date().toISOString(), note_text: '', tags: [] }
+
+  const { error } = await supabase
+    .from('hitter_notes')
+    .upsert(updatedNote, { onConflict: 'team_id,opponent_name,batter_name' })
+  if (error) console.warn('Failed to save AI summary:', error.message)
+}

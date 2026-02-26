@@ -5,7 +5,7 @@ import { useToast } from './components/Toast.jsx'
 import PitcherScoutingReport from './components/PitcherScoutingReport.jsx'
 import GameSummary from './components/GameSummary.jsx'
 import { exportGameSummaryPDF } from './lib/exportPDF.js'
-import { getClaudeRecommendations } from './lib/claudeAI.js'
+import { getClaudeRecommendations, generatePostABSummary, TRIGGER_LABELS } from './lib/claudeAI.js'
 import './index.css'
 import Header from './components/Header'
 import LeftPanel from './components/LeftPanel'
@@ -484,6 +484,7 @@ export default function App() {
   const [aiRecs, setAiRecs]         = useState(null)   // Claude API results
   const [aiLoading, setAiLoading]   = useState(false)  // Claude in-flight
   const [aiSource, setAiSource]     = useState('rule') // 'rule' | 'claude'
+  const [aiTrigger, setAiTrigger]   = useState(null)   // current trigger type
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(null) // null | { reason }
   const [activeView, setActiveView] = useState('chart')  // 'chart' | 'scorebook'
   const [showScorebook, setShowScorebook] = useState(false)
@@ -688,6 +689,27 @@ export default function App() {
   const signals         = aiRecs?.signals        || ruleSignals
   const recommendations = aiRecs?.recommendations || ruleRecs
 
+  // ── Layer 4: Post-AB summary — fires when a PA completes ─────────────────────
+  const prevPACountRef = useRef(0)
+  useEffect(() => {
+    const count = allPAs.length
+    if (count <= prevPACountRef.current) { prevPACountRef.current = count; return }
+    prevPACountRef.current = count
+    if (!session || paPitches.length === 0) return
+    // Fire post-AB summary async — don't block anything
+    const lastBatterName = allPAs[allPAs.length-1]?.batter_name
+    const lastBatter = oppLineup.find(p => p.name === lastBatterName) || { name: lastBatterName }
+    generatePostABSummary({
+      teamId:    session.team.team_id,
+      opponent:  session.game.opponent,
+      batter:    lastBatter,
+      paPitches: gamePitches.filter(p => p.pa_id === allPAs[allPAs.length-1]?.pa_id),
+      allGamePAs: allPAs,
+      pitcherName,
+      arsenal,
+    }).catch(() => {}) // silent failure
+  }, [allPAs.length])
+
   // ── Claude AI enrichment ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentBatter || !pitcherName || !arsenal.length) return
@@ -704,17 +726,21 @@ export default function App() {
     const triggerAI = async () => {
       setAiLoading(true)
       const hitterNote = hitterNotes[currentBatter?.name] || null
+      const aiMemory   = hitterNote?.ai_summary || null
       const result = await getClaudeRecommendations({
-        batter: currentBatter,
-        batterType: currentBatter?.batter_type || 'unknown',
+        batter:      currentBatter,
+        batterType:  currentBatter?.batter_type || 'unknown',
         balls, strikes, outs, inning, topBottom,
         ourRuns, oppRuns, on1b, on2b, on3b,
         paPitches, gamePitches, arsenal, pitcherName,
-        pci, hitterNote,
+        pci, hitterNote, aiMemory,
+        teamId:   session?.team?.team_id,
+        opponent: session?.game?.opponent,
       })
       if (result) {
         setAiRecs(result)
         setAiSource('claude')
+        setAiTrigger(result.trigger || null)
       }
       setAiLoading(false)
     }
@@ -1136,7 +1162,7 @@ export default function App() {
     pitchers, pitcherName, onPitcherChange: handlePitcherChange,
     selectedZone, onSelectZone: setSelectedZone,
     selectedPitch, onSelectPitch: setSelectedPitch,
-    arsenal, recommendations, aiSource, aiLoading, signals,
+    arsenal, recommendations, aiSource, aiLoading, aiTrigger, signals,
     selectedOutcome, onSelectOutcome: setSelectedOutcome,
     inPlayDetail, onInPlayChange: setInPlayDetail,
     onRecord: handleRecord, onUndo: handleUndo,
@@ -1249,6 +1275,7 @@ export default function App() {
           signals={signals}
           aiSource={aiSource}
           aiLoading={aiLoading}
+          aiTrigger={aiTrigger}
         />
 
         <CenterPanel

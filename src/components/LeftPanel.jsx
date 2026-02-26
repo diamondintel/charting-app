@@ -53,6 +53,7 @@ export default function LeftPanel({
   signals = [],
   aiSource = 'rule',
   aiLoading = false,
+  aiTrigger = null,
 }) {
   const tc = BATTER_TYPE_COLORS[currentBatter?.batter_type || 'unknown']
 
@@ -235,8 +236,13 @@ export default function LeftPanel({
           <div className="section-label" style={{ marginBottom:0 }}>SIGNAL FEED</div>
           <div style={{ display:'flex', alignItems:'center', gap:5 }}>
             {aiLoading && (
-              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:7, color:'#F5A623', letterSpacing:1, animation:'pulse 1s infinite' }}>
-                ⟳ AI
+              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:7, color:'#F5A623', letterSpacing:1 }}>
+                ⟳ THINKING
+              </span>
+            )}
+            {!aiLoading && aiTrigger && aiSource === 'claude' && (
+              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:7, letterSpacing:1, padding:'2px 5px', borderRadius:3, background:'rgba(245,166,35,0.12)', border:'1px solid rgba(245,166,35,0.3)', color:'#F5A623' }}>
+                {({'pre_ab':'PRE-AB','two_strike':'2-STR','three_ball':'3-BALL','third_time':'3RD TIME','hard_contact':'ADJUST','mid_ab':'MID-AB'})[aiTrigger] || aiTrigger}
               </span>
             )}
             <span style={{

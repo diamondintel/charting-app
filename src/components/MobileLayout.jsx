@@ -460,7 +460,7 @@ function PitchTab({
 }
 
 // ── AI TAB ────────────────────────────────────────────────────────────────────
-function AITab({ recommendations, signals, pci, reverseSwitch, onApplyRec, aiSource='rule', aiLoading=false }) {
+function AITab({ recommendations, signals, pci, reverseSwitch, onApplyRec, aiSource='rule', aiLoading=false, aiTrigger=null }) {
   return (
     <div style={{ flex:1, overflow:'auto', padding:'10px 12px', display:'flex', flexDirection:'column', gap:12 }}>
 
@@ -498,7 +498,12 @@ function AITab({ recommendations, signals, pci, reverseSwitch, onApplyRec, aiSou
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
           <div style={{ fontFamily:mono, fontSize:8, letterSpacing:3, color:C.dim }}>SIGNAL FEED</div>
           <div style={{ display:'flex', gap:5, alignItems:'center' }}>
-            {aiLoading && <span style={{ fontFamily:mono, fontSize:7, color:C.gold }}>⟳ AI</span>}
+            {aiLoading && <span style={{ fontFamily:mono, fontSize:7, color:C.gold }}>⟳ THINKING</span>}
+            {!aiLoading && aiTrigger && aiSource==='claude' && (
+              <span style={{ fontFamily:mono, fontSize:7, padding:'2px 5px', borderRadius:3, background:'rgba(245,166,35,0.12)', border:'1px solid rgba(245,166,35,0.3)', color:C.gold }}>
+                {({'pre_ab':'PRE-AB','two_strike':'2-STR','three_ball':'3-BALL','third_time':'3RD TIME','hard_contact':'ADJUST','mid_ab':'MID-AB'})[aiTrigger]}
+              </span>
+            )}
             <span style={{
               fontFamily:mono, fontSize:7, letterSpacing:1, padding:'2px 6px', borderRadius:3,
               background: aiSource==='claude' ? 'rgba(0,229,160,0.12)' : 'rgba(61,96,128,0.15)',
@@ -843,7 +848,7 @@ export default function MobileLayout({
   onRecord, onUndo, canRecord, canUndo,
   paPitches, onNewPA,
   // ai
-  signals, pci, reverseSwitch, onApplyRec, aiSource='rule', aiLoading=false,
+  signals, pci, reverseSwitch, onApplyRec, aiSource='rule', aiLoading=false, aiTrigger=null,
   // nav
   onRoster, onScorebook, onEndGame,
   session,
@@ -875,7 +880,7 @@ export default function MobileLayout({
         )}
         {tab === 'ai' && (
           <AITab
-            recommendations={recommendations} signals={signals} aiSource={aiSource} aiLoading={aiLoading}
+            recommendations={recommendations} signals={signals} aiSource={aiSource} aiLoading={aiLoading} aiTrigger={aiTrigger}
             pci={pci} reverseSwitch={reverseSwitch} onApplyRec={onApplyRec}
           />
         )}
