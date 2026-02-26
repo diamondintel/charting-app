@@ -247,8 +247,8 @@ function SetupScreen({ onGameReady }) {
                       {pitchers.map(p => {
                         const isSelected = selectedPitcher?.player_id === p.player_id
                         return (
+                          <div key={p.player_id} style={{ display:'flex', flexDirection:'column', gap:4 }}>
                           <div
-                            key={p.player_id}
                             onClick={() => setSelectedPitcher(p)}
                             style={{
                               padding:'10px 12px',
@@ -306,20 +306,19 @@ function SetupScreen({ onGameReady }) {
                                 ))}
                               </div>
                             )}
-                            {/* Scouting report button — stopPropagation prevents pitcher card selection */}
-                            <div onClick={e => e.stopPropagation()} style={{ marginTop:8 }}>
-                              <button
-                                onClick={() => { setSelectedPitcher(p); setShowScoutingReport(true) }}
-                                style={{ padding:'5px 12px', background:'rgba(0,212,255,0.1)', border:'1px solid rgba(0,212,255,0.35)', borderRadius:4, color:'#00D4FF', fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1, cursor:'pointer', width:'100%' }}
-                              >
-                                📊 VIEW SCOUTING REPORT
-                              </button>
-                            </div>
                             {p.pitcher_notes && (
                               <div style={{ marginTop:5, fontFamily:"'DM Sans', sans-serif", fontSize:11, color:'var(--text-secondary)', fontStyle:'italic' }}>
                                 {p.pitcher_notes}
                               </div>
                             )}
+                          </div>
+                          {/* Scouting button lives OUTSIDE the clickable card div */}
+                          <button
+                            onClick={() => { setSelectedPitcher(p); setShowScoutingReport(true) }}
+                            style={{ padding:'6px 12px', background:'rgba(0,212,255,0.1)', border:'1px solid rgba(0,212,255,0.35)', borderRadius:4, color:'#00D4FF', fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1, cursor:'pointer', width:'100%' }}
+                          >
+                            📊 VIEW SCOUTING REPORT
+                          </button>
                           </div>
                         )
                       })}
@@ -389,6 +388,9 @@ function SetupScreen({ onGameReady }) {
 // ─── Half Inning Modal ────────────────────────────────────────────────────────
 function HalfInningModal({ modal, topBottom, ourLineup, onChoice }) {
   if (!modal) return null
+  // Use wasTop captured at modal-open time, not live topBottom state
+  // (live state may have already updated by render time, causing wrong branch)
+  const isTop = modal.wasTop !== undefined ? modal.wasTop : topBottom === 'top'
   return (
     <div style={{
       position:'fixed', inset:0, background:'rgba(5,12,20,0.88)',
@@ -400,17 +402,17 @@ function HalfInningModal({ modal, topBottom, ourLineup, onChoice }) {
         borderRadius:12, padding:32, width:'min(420px, 90vw)', textAlign:'center',
       }}>
         <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:10, letterSpacing:3, color:'#7BACC8', marginBottom:8 }}>
-          {topBottom === 'top' ? `END OF TOP ${modal.inning}` : `END OF INNING ${modal.inning}`}
+          {isTop ? `END OF TOP ${modal.inning}` : `END OF INNING ${modal.inning}`}
         </div>
         <div style={{ fontFamily:"'Bebas Neue','Rajdhani',sans-serif", fontSize:40, color:'#F5A623', letterSpacing:4, marginBottom:8 }}>
           3 OUTS
         </div>
         <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:13, color:'#7BACC8', marginBottom:28, lineHeight:1.5 }}>
-          {topBottom === 'top'
+          {isTop
             ? `Inning ${modal.inning} top half complete. What's next?`
             : `Inning ${modal.inning} complete. Advancing to inning ${modal.nextInning}.`}
         </div>
-        {topBottom === 'top' ? (
+        {isTop ? (
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             <button onClick={() => onChoice('bottom')} style={{
               background:'rgba(0,212,255,0.12)', border:'1px solid rgba(0,212,255,0.35)',
@@ -901,10 +903,10 @@ export default function App() {
             const isTop = topBottom === 'top'
             if (isTop) {
               // End of top half — offer bottom of same inning or skip to next
-              setShowHalfInningModal({ inning, nextHalf: 'bottom' })
+              setShowHalfInningModal({ inning, nextHalf: 'bottom', wasTop: true })
             } else {
               // End of bottom half — advance to top of next inning
-              setShowHalfInningModal({ inning, nextHalf: 'top', nextInning: inning + 1 })
+              setShowHalfInningModal({ inning, nextHalf: 'top', nextInning: inning + 1, wasTop: false })
             }
             setOuts(0)
             // Clear bases
