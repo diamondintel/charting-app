@@ -566,7 +566,7 @@ function GameTab({
   subs, onSubstitute,
   lineupMode, onLineupModeChange,
   currentBatter, manualBatterName, onManualBatterName,
-  batterStats, paPitches, onRoster, onPitcherChange, pitchers, pitcherName,
+  batterStats, paPitches, onRoster, onPitcherChange, pitchers, pitcherName, onEndGame,
   onInningChange,
 }) {
   const mode = LINEUP_MODES[lineupMode] || LINEUP_MODES.standard
@@ -786,6 +786,11 @@ function GameTab({
       <button onClick={onRoster} style={{ padding:'14px', borderRadius:8, border:`1px solid ${C.border}`, background:'rgba(255,255,255,0.03)', color:C.sec, fontFamily:bebas, fontSize:16, letterSpacing:3, cursor:'pointer' }}>
         ⊞ ROSTER MANAGEMENT
       </button>
+
+      {/* End Game button */}
+      <button onClick={onEndGame} style={{ padding:'14px', borderRadius:8, border:'1px solid rgba(255,80,80,0.35)', background:'rgba(255,80,80,0.08)', color:'#FF5050', fontFamily:bebas, fontSize:16, letterSpacing:3, cursor:'pointer' }}>
+        ⏹ END GAME
+      </button>
     </div>
   )
 }
@@ -827,7 +832,7 @@ export default function MobileLayout({
   // ai
   signals, pci, reverseSwitch, onApplyRec,
   // nav
-  onRoster, onScorebook,
+  onRoster, onScorebook, onEndGame,
   session,
   // scorebook
   gamePitches, Scorebook, pitcher,
@@ -876,6 +881,7 @@ export default function MobileLayout({
             paPitches={paPitches} onNewPA={onNewPA}
             pitchers={pitchers} pitcherName={pitcherName} onPitcherChange={onPitcherChange}
             onRoster={onRoster}
+            onEndGame={onEndGame}
           />
         )}
         {tab === 'book' && (

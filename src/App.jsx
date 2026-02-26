@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useToast } from './components/Toast.jsx'
 import PitcherScoutingReport from './components/PitcherScoutingReport.jsx'
+import GameSummary from './components/GameSummary.jsx'
+import { exportGameSummaryPDF } from './lib/exportPDF.js'
 import './index.css'
 import Header from './components/Header'
 import LeftPanel from './components/LeftPanel'
@@ -139,6 +141,7 @@ function ResumeGameRow({ game, onResume, onDelete }) {
 }
 
 // ─── Setup Screen ─────────────────────────────────────────────────────────────
+// v2
 function SetupScreen({ onGameReady }) {
   const [teams, setTeams]               = useState([])
   const [games, setGames]               = useState([])
@@ -467,6 +470,8 @@ export default function App() {
   const [showRoster, setShowRoster] = useState(false)
   const [saveStatus, setSaveStatus] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [hitterNotes, setHitterNotes] = useState({}) // { batterName: { text, tags } }
+  const [showGameSummary, setShowGameSummary] = useState(false)
+  const [showEndGameConfirm, setShowEndGameConfirm] = useState(null) // null | { reason }
   const [activeView, setActiveView] = useState('chart')  // 'chart' | 'scorebook'
   const [showScorebook, setShowScorebook] = useState(false)
   const [showHalfInningModal, setShowHalfInningModal] = useState(null)
@@ -707,8 +712,10 @@ export default function App() {
 
     if (choice === 'skip') {
       // Skip bottom — opponent bats top of next inning, order continues
-      setInning(m.nextInning || m.inning + 1)
+      const nextInn = m.nextInning || m.inning + 1
+      setInning(nextInn)
       setTopBottom('top')
+      checkEndGameConditions(nextInn, ourRuns, oppRuns)
       const { starters: skipStarters, bench: skipBench } = splitLineup(oppLineup, lineupMode)
       setLineup(skipStarters)
       setSubs(skipBench)
@@ -728,8 +735,10 @@ export default function App() {
       setLineupPos(0)  // Lady Hawks start fresh each time for now
     } else if (choice === 'next') {
       // End of bottom — opponent bats top of next inning, order continues
-      setInning(m.nextInning || m.inning + 1)
+      const nextInn2 = m.nextInning || m.inning + 1
+      setInning(nextInn2)
       setTopBottom('top')
+      checkEndGameConditions(nextInn2, ourRuns, oppRuns)
       const { starters, bench } = splitLineup(oppLineup, lineupMode)
       setLineup(starters)
       setSubs(bench)
@@ -954,6 +963,37 @@ export default function App() {
     return <SetupScreen onGameReady={setSession} />
   }
 
+  // ── End Game ────────────────────────────────────────────────────────────────
+  function checkEndGameConditions(newInning, newOurRuns, newOppRuns) {
+    const runDiff = Math.abs(newOurRuns - newOppRuns)
+    // 10-run rule after 3+ complete innings
+    if (runDiff >= 10 && newInning >= 4) {
+      setShowEndGameConfirm({ reason: `10-run rule (${newOurRuns}-${newOppRuns} after ${newInning-1} innings)` })
+      return
+    }
+    // After 7th inning complete
+    if (newInning > 7) {
+      setShowEndGameConfirm({ reason: `7 innings complete` })
+    }
+  }
+
+  function handleEndGame() {
+    setShowEndGameConfirm(null)
+    setShowGameSummary(true)
+  }
+
+  async function handleExportPDF() {
+    try {
+      await exportGameSummaryPDF({
+        session, gamePitches, allPAs, pitcherName,
+        oppLineup, ourRuns, oppRuns, inning
+      })
+      toast.success('PDF downloaded!')
+    } catch(e) {
+      toast.error(`PDF export failed: ${e.message}`)
+    }
+  }
+
   // Save hitter note for current batter
   async function handleSaveNote(batterName, note) {
     if (!session) return
@@ -1016,6 +1056,7 @@ export default function App() {
     currentBatter, batterStats,
     lineupMode, onLineupModeChange: setLineupMode,
     hitterNotes, onSaveNote: handleSaveNote,
+    onEndGame: () => setShowEndGameConfirm({ reason: 'manual' }),
     pitchers, pitcherName, onPitcherChange: handlePitcherChange,
     selectedZone, onSelectZone: setSelectedZone,
     selectedPitch, onSelectPitch: setSelectedPitch,
@@ -1157,6 +1198,43 @@ export default function App() {
 
       {showRoster && <RosterTab session={session} onClose={handleRosterClose} lineupMode={lineupMode} />}
 
+      {/* ── End Game Confirm ── */}
+      {showEndGameConfirm && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(5,12,20,0.92)', backdropFilter:'blur(4px)', zIndex:400, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div style={{ background:'#0C1C2E', border:'1px solid #1A3550', borderRadius:12, padding:32, width:'min(400px,90vw)', textAlign:'center' }}>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:32, color:'#F5A623', letterSpacing:3, marginBottom:8 }}>END GAME?</div>
+            <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:13, color:'#7BACC8', marginBottom:24, lineHeight:1.5 }}>
+              {showEndGameConfirm.reason === 'manual' ? 'End the game and view the final summary?' : `${showEndGameConfirm.reason} — end the game?`}
+            </div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => setShowEndGameConfirm(null)} style={{ flex:1, padding:'12px 0', background:'transparent', border:'1px solid #1A3550', color:'#7BACC8', borderRadius:6, cursor:'pointer', fontFamily:"'Share Tech Mono',monospace", fontSize:9, letterSpacing:2 }}>
+                KEEP PLAYING
+              </button>
+              <button onClick={handleEndGame} style={{ flex:1, padding:'12px 0', background:'rgba(245,166,35,0.15)', border:'1px solid rgba(245,166,35,0.5)', color:'#F5A623', borderRadius:6, cursor:'pointer', fontFamily:"'Share Tech Mono',monospace", fontSize:9, letterSpacing:2 }}>
+                END GAME
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Game Summary ── */}
+      {showGameSummary && (
+        <GameSummary
+          session={session}
+          gamePitches={gamePitches}
+          allPAs={allPAs}
+          pitcherName={pitcherName}
+          oppLineup={oppLineup}
+          ourLineup={ourLineup}
+          ourRuns={ourRuns}
+          oppRuns={oppRuns}
+          inning={inning}
+          onClose={() => setShowGameSummary(false)}
+          onExportPDF={handleExportPDF}
+        />
+      )}
+
       {showScorebook && (
         <Scorebook
           onClose={() => setShowScorebook(false)}
@@ -1182,6 +1260,7 @@ export default function App() {
         onUndo={handleUndo}
         onRoster={() => setShowRoster(true)}
         onScorebook={() => setShowScorebook(true)}
+        onEndGame={() => setShowEndGameConfirm({ reason: 'manual' })}
         pitchers={pitchers}
         pitcherName={pitcherName}
         onPitcherChange={handlePitcherChange}

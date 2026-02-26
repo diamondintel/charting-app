@@ -16,7 +16,7 @@ const LOCATIONS      = ['Infield','Left','Center','Right','Deep L','Deep C','Dee
 export default function BottomConsole({
   selectedOutcome, onSelectOutcome,
   inPlayDetail, onInPlayChange,
-  onRecord, onUndo, onNewPA, onRoster,
+  onRecord, onUndo, onNewPA, onRoster, onScorebook, onEndGame,
   pitchers, pitcherName, onPitcherChange,
   canRecord, canUndo,
 }) {
@@ -137,6 +137,8 @@ export default function BottomConsole({
         )}
 
         <button className={styles.rosterBtn} onClick={onRoster}>⊞ ROSTER</button>
+        <button className={styles.scorebookBtn} onClick={onScorebook}>📋 SCOREBOOK</button>
+        <button onClick={onEndGame} style={{ padding:'6px 14px', borderRadius:4, border:'1px solid rgba(255,80,80,0.4)', background:'rgba(255,80,80,0.1)', color:'#FF5050', cursor:'pointer', fontFamily:"'Share Tech Mono',monospace", fontSize:9, letterSpacing:1, whiteSpace:'nowrap' }}>⏹ END GAME</button>
 
         <div className={styles.status}>
           <div className={styles.statusLabel}>SYSTEM STATUS</div>
