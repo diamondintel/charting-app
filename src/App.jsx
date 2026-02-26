@@ -1068,7 +1068,7 @@ export default function App() {
     paPitches, onNewPA: handleNewPA,
     signals, pci, reverseSwitch, onApplyRec: handleApplyRec,
     onRoster: () => setShowRoster(true),
-    onScorebook: () => setActiveView('scorebook'),
+    onScorebook: () => setShowScorebook(true),
     gamePitches, session,
     pitcher: pitchers.find(p => p.name === pitcherName) || null,
     Scorebook,
@@ -1235,20 +1235,6 @@ export default function App() {
         />
       )}
 
-      {showScorebook && (
-        <Scorebook
-          onClose={() => setShowScorebook(false)}
-          gamePitches={gamePitches}
-          lineup={oppLineup}
-          ourLineup={ourLineup}
-          session={session}
-          inning={inning}
-          topBottom={topBottom}
-          pitchers={pitchers}
-          pitcherName={pitcherName}
-        />
-      )}
-
       <HalfInningModal modal={showHalfInningModal} topBottom={topBottom} ourLineup={ourLineup} onChoice={handleHalfInning} />
 
       <BottomConsole
@@ -1259,7 +1245,7 @@ export default function App() {
         onRecord={handleRecord}
         onUndo={handleUndo}
         onRoster={() => setShowRoster(true)}
-        onScorebook={() => setShowScorebook(true)}
+        onScorebook={() => setActiveView('scorebook')}
         onEndGame={() => setShowEndGameConfirm({ reason: 'manual' })}
         pitchers={pitchers}
         pitcherName={pitcherName}
