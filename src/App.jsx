@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import AuthScreen from './components/AuthScreen.jsx'
+import ResetPasswordScreen from './components/ResetPasswordScreen.jsx'
 import { supabase, signOut } from './lib/supabase.js'
 import { useToast } from './components/Toast.jsx'
 import PitcherScoutingReport from './components/PitcherScoutingReport.jsx'
@@ -475,7 +476,8 @@ function HalfInningModal({ modal, topBottom, ourLineup, onChoice }) {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const toast = useToast()
-  const [authUser, setAuthUser]   = useState(undefined) // undefined=loading, null=logged out, object=logged in
+  const [authUser, setAuthUser]           = useState(undefined) // undefined=loading, null=logged out, object=logged in
+  const [needsPasswordReset, setNeedsPasswordReset] = useState(false)
   const [session, setSession] = useState(null) // { team, game, savedState? }
   const [showRoster, setShowRoster] = useState(false)
   const [saveStatus, setSaveStatus] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
@@ -553,8 +555,15 @@ export default function App() {
   // ── Auth state listener ──────────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user ?? null))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, authSession) => {
-      setAuthUser(authSession?.user ?? null)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, authSession) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked reset link — show password reset screen
+        setNeedsPasswordReset(true)
+        setAuthUser(authSession?.user ?? null)
+      } else {
+        setNeedsPasswordReset(false)
+        setAuthUser(authSession?.user ?? null)
+      }
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -1050,6 +1059,9 @@ export default function App() {
     <div style={{ minHeight:'100vh', background:'#050C14', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:11, color:'#3D6080', letterSpacing:3 }}>LOADING…</div>
     </div>
+  )
+  if (needsPasswordReset && authUser) return (
+    <ResetPasswordScreen onDone={() => setNeedsPasswordReset(false)} />
   )
   if (authUser === null) return <AuthScreen />
 
