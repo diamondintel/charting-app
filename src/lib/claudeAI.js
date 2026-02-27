@@ -11,7 +11,7 @@
 import { getBatterHistoricalData, saveAIBatterSummary } from './db.js'
 
 const CLAUDE_MODEL = 'claude-sonnet-4-20250514'
-const API_URL      = 'https://api.anthropic.com/v1/messages'
+const API_URL      = '/api/claude'
 
 // ─── Rate limiting per trigger type ──────────────────────────────────────────
 const callTimes = {}
