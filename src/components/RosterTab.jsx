@@ -521,7 +521,11 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
     setOcrLoading(true)
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      // Test the endpoint first
+      const testRes = await fetch('/api/claude', { method: 'OPTIONS' })
+      console.log('API route status:', testRes.status, testRes.ok)
+
+      const response = await fetch('/api/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -563,7 +567,10 @@ If you cannot read any names, return an empty array: []`
         })
       })
 
-      if (!response.ok) throw new Error(`API error ${response.status}`)
+      if (!response.ok) {
+        const errText = await response.text().catch(() => 'no body')
+        throw new Error(`API ${response.status}: ${errText.slice(0, 200)}`)
+      }
       const data = await response.json()
       const text = data.content?.find(b => b.type === 'text')?.text || ''
       const clean = text.replace(/\`\`\`json|\`\`\`/g, '').trim()
@@ -576,7 +583,8 @@ If you cannot read any names, return an empty array: []`
 
       setOcrResult(players)
     } catch(e) {
-      setOcrError(`OCR failed: ${e.message}. Try a clearer photo.`)
+      console.error('OCR error full:', e)
+      setOcrError(`OCR failed: ${e.message}`)
     } finally {
       setOcrLoading(false)
       // Reset file input so same file can be re-selected
