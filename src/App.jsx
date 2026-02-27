@@ -156,6 +156,7 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
   const [showScoutingReport, setShowScoutingReport] = useState(false)
   const [loading, setLoading]           = useState(true)
   const [opponent, setOpponent]         = useState('')
+  const [customOpponent, setCustomOpponent] = useState('')
   const [gameDate, setGameDate]         = useState(new Date().toISOString().split('T')[0])
   const [error, setError]               = useState(null)
 
@@ -232,8 +233,8 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
               <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, letterSpacing:3, color:'var(--text-dim)', marginBottom:10 }}>NEW GAME</div>
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                 <select
-                  value={opponent}
-                  onChange={e => setOpponent(e.target.value)}
+                  value={opponent === '__custom__' || !['', '__custom__'].includes(opponent) && !teams.find(t=>t.name===opponent) ? '__custom__' : opponent}
+                  onChange={e => { setOpponent(e.target.value); if (e.target.value !== '__custom__') setCustomOpponent('') }}
                   style={{ background:'var(--panel)', border:'1px solid var(--border)', color: opponent ? 'var(--text-primary)' : 'var(--text-dim)', borderRadius:4, padding:'8px 10px', fontSize:14, fontFamily:"'DM Sans', sans-serif", cursor:'pointer' }}
                 >
                   <option value="">— Select opponent —</option>
@@ -245,8 +246,10 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
                 </select>
                 {opponent === '__custom__' && (
                   <input
-                    placeholder="Enter opponent name"
-                    onChange={e => setOpponent(e.target.value)}
+                    placeholder="Enter opponent team name"
+                    value={customOpponent}
+                    onChange={e => { setCustomOpponent(e.target.value); setOpponent(e.target.value || '__custom__') }}
+                    autoFocus
                     style={{ background:'var(--panel)', border:'1px solid var(--gold)', color:'var(--text-primary)', borderRadius:4, padding:'8px 10px', fontSize:14, fontFamily:"'DM Sans', sans-serif", outline:'none' }}
                   />
                 )}
