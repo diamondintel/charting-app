@@ -174,9 +174,11 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
   }, [selectedTeam])
 
   async function handleCreateGame() {
-    if (!selectedTeam || !opponent) return
+    if (!selectedTeam || !opponent || (opponent === '__custom__' && !customOpponent.trim())) return
     try {
-      const game = await createGame(selectedTeam.team_id, opponent, gameDate)
+      const finalOpponent = opponent === '__custom__' ? customOpponent.trim() : opponent
+      if (!finalOpponent) return
+      const game = await createGame(selectedTeam.team_id, finalOpponent, gameDate)
       onGameReady({ team: selectedTeam, game, pitcher: selectedPitcher })
     } catch (e) { setError(e.message) }
   }
@@ -233,8 +235,16 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
               <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, letterSpacing:3, color:'var(--text-dim)', marginBottom:10 }}>NEW GAME</div>
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                 <select
-                  value={opponent === '__custom__' || !['', '__custom__'].includes(opponent) && !teams.find(t=>t.name===opponent) ? '__custom__' : opponent}
-                  onChange={e => { setOpponent(e.target.value); if (e.target.value !== '__custom__') setCustomOpponent('') }}
+                  value={customOpponent ? '__custom__' : opponent}
+                  onChange={e => {
+                    if (e.target.value === '__custom__') {
+                      setOpponent('__custom__')
+                      setCustomOpponent('')
+                    } else {
+                      setOpponent(e.target.value)
+                      setCustomOpponent('')
+                    }
+                  }}
                   style={{ background:'var(--panel)', border:'1px solid var(--border)', color: opponent ? 'var(--text-primary)' : 'var(--text-dim)', borderRadius:4, padding:'8px 10px', fontSize:14, fontFamily:"'DM Sans', sans-serif", cursor:'pointer' }}
                 >
                   <option value="">— Select opponent —</option>
@@ -248,7 +258,8 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
                   <input
                     placeholder="Enter opponent team name"
                     value={customOpponent}
-                    onChange={e => { setCustomOpponent(e.target.value); setOpponent(e.target.value || '__custom__') }}
+                    onChange={e => setCustomOpponent(e.target.value)}
+                    onBlur={e => { if (e.target.value.trim()) setOpponent(e.target.value.trim()) }}
                     autoFocus
                     style={{ background:'var(--panel)', border:'1px solid var(--gold)', color:'var(--text-primary)', borderRadius:4, padding:'8px 10px', fontSize:14, fontFamily:"'DM Sans', sans-serif", outline:'none' }}
                   />
