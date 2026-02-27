@@ -508,16 +508,29 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
     setOcrError(null)
     setOcrResult(null)
 
-    // Read as base64
+    // Compress image via canvas before sending — reduces payload from ~3MB to ~200KB
     const base64 = await new Promise((res, rej) => {
-      const reader = new FileReader()
-      reader.onload = () => res(reader.result.split(',')[1])
-      reader.onerror = rej
-      reader.readAsDataURL(file)
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        // Scale down to max 1200px wide — plenty for OCR
+        const maxW = 1200
+        const scale = Math.min(1, maxW / img.width)
+        const canvas = document.createElement('canvas')
+        canvas.width  = Math.round(img.width  * scale)
+        canvas.height = Math.round(img.height * scale)
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+        URL.revokeObjectURL(url)
+        res(dataUrl.split(',')[1])
+      }
+      img.onerror = rej
+      img.src = url
     })
 
     // Show preview
-    setOcrPreview(`data:${file.type};base64,${base64}`)
+    setOcrPreview(`data:image/jpeg;base64,${base64}`)
     setOcrLoading(true)
 
     try {
@@ -536,7 +549,7 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
             content: [
               {
                 type: 'image',
-                source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 }
+                source: { type: 'base64', media_type: 'image/jpeg', data: base64 }
               },
               {
                 type: 'text',
