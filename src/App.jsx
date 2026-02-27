@@ -537,6 +537,8 @@ export default function App() {
   const [lineup, setLineup]         = useState([])   // active BATTING lineup (starters only)
   const lineupRef = useRef([])                         // always-current ref for use in async handlers
   const lastLineupPosRef = useRef(0)                   // tracks last batter position across inning boundaries
+  // Keep ref in sync with state so handleHalfInning always reads current value
+  lastLineupPosRef.current = lineupPos
   const [subs, setSubs]             = useState([])   // bench / substitutes not yet in lineup
   const [ourLineup, setOurLineup]   = useState([])   // full Lady Hawks roster (starters + subs)
   const [oppLineup, setOppLineup]   = useState([])   // full opponent roster (starters + subs)
@@ -644,8 +646,7 @@ export default function App() {
           setOn2b(savedState.on2b ?? false)
           setOn3b(savedState.on3b ?? false)
           const restoredPos = savedState.lineup_pos ?? 0
-          setLineupPos(restoredPos)
-          lastLineupPosRef.current = restoredPos  // sync ref so inning transitions use correct position
+          setLineupPos(restoredPos)  // lastLineupPosRef auto-syncs
           setLineupMode(savedState.lineup_mode ?? 'standard')
           if (savedState.pitcher_name) setPitcherName(savedState.pitcher_name)
         }
@@ -1022,8 +1023,7 @@ export default function App() {
         const currentLineup = lineupRef.current
         if (currentLineup.length > 0) {
           const nextPos = (lineupPos + 1) % currentLineup.length
-          lastLineupPosRef.current = nextPos   // persist across inning boundaries
-          setLineupPos(nextPos)
+          setLineupPos(nextPos)  // lastLineupPosRef auto-syncs via direct assignment above
         }
 
         // ── Update outs + handle inning change ─────────────────────────
