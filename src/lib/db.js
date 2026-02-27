@@ -249,17 +249,17 @@ export async function deletePlayer(playerId) {
 }
 
 export async function upsertOpponentPlayer(teamId, opponentName, player) {
-  // Use insert instead of upsert — clearOpponentLineup always runs first,
-  // so there are no existing rows to conflict with. This avoids the
-  // team_id,name conflict key colliding across different games vs same opponent.
+  // Upsert using (team_id, opponent_name, name) as conflict key
+  // Requires the fixed constraint from supabase_fix_player_constraint.sql
   const { data, error } = await supabase
     .from('players')
-    .insert({
+    .upsert({
       ...player,
+      name: player.name.trim(),
       team_id: teamId,
       team_side: 'opponent',
       opponent_name: opponentName,
-    })
+    }, { onConflict: 'team_id,opponent_name,name' })
     .select().single()
   if (error) throw error
   return data
@@ -423,4 +423,18 @@ export async function saveAIBatterSummary(teamId, opponentName, batterName, aiSu
     .from('hitter_notes')
     .upsert(updatedNote, { onConflict: 'team_id,opponent_name,batter_name' })
   if (error) console.warn('Failed to save AI summary:', error.message)
+}
+
+// ─── Get all opponent teams that have saved rosters ───────────────────────────
+export async function getSavedOpponentTeams(teamId) {
+  const { data, error } = await supabase
+    .from('players')
+    .select('opponent_name')
+    .eq('team_id', teamId)
+    .eq('team_side', 'opponent')
+    .not('opponent_name', 'is', null)
+  if (error) throw error
+  // Return distinct names sorted
+  const names = [...new Set((data || []).map(r => r.opponent_name))].sort()
+  return names
 }

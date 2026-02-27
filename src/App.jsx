@@ -17,7 +17,7 @@ import RosterTab from './components/RosterTab'
 import Scorebook from './components/Scorebook'
 import MobileLayout from './components/MobileLayout'
 import {
-  getTeams, getGames, createGame, deleteGame,
+  getTeams, getGames, createGame, deleteGame, getSavedOpponentTeams,
   getOpponentLineup, getPlayers, getPitchers,
   createPA, updatePAResult,
   saveHitterNote, getHitterNotes,
@@ -157,6 +157,7 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
   const [loading, setLoading]           = useState(true)
   const [opponent, setOpponent]         = useState('')
   const [customOpponent, setCustomOpponent] = useState('')
+  const [savedOpponents, setSavedOpponents] = useState([])
   const [gameDate, setGameDate]         = useState(new Date().toISOString().split('T')[0])
   const [error, setError]               = useState(null)
 
@@ -171,6 +172,7 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
       setPitchers(ps)
       setSelectedPitcher(ps.length > 0 ? ps[0] : null)
     }).catch(console.error)
+    getSavedOpponentTeams(selectedTeam.team_id).then(setSavedOpponents).catch(console.error)
   }, [selectedTeam])
 
   async function handleCreateGame() {
@@ -248,11 +250,22 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
                   style={{ background:'var(--panel)', border:'1px solid var(--border)', color: opponent ? 'var(--text-primary)' : 'var(--text-dim)', borderRadius:4, padding:'8px 10px', fontSize:14, fontFamily:"'DM Sans', sans-serif", cursor:'pointer' }}
                 >
                   <option value="">— Select opponent —</option>
-                  {teams
-                    .filter(t => t.team_id !== selectedTeam?.team_id)
-                    .map(t => <option key={t.team_id} value={t.name}>{t.name}</option>)
-                  }
-                  <option value="__custom__">+ Other (type name)</option>
+                  {savedOpponents.length > 0 && (
+                    <optgroup label="── SAVED OPPONENTS ──">
+                      {savedOpponents.map(name => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {teams.filter(t => t.team_id !== selectedTeam?.team_id).length > 0 && (
+                    <optgroup label="── YOUR TEAMS ──">
+                      {teams
+                        .filter(t => t.team_id !== selectedTeam?.team_id)
+                        .map(t => <option key={t.team_id} value={t.name}>{t.name}</option>)
+                      }
+                    </optgroup>
+                  )}
+                  <option value="__custom__">+ New opponent (type name)</option>
                 </select>
                 {opponent === '__custom__' && (
                   <input
