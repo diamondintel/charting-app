@@ -249,17 +249,27 @@ export async function deletePlayer(playerId) {
 }
 
 export async function upsertOpponentPlayer(teamId, opponentName, player) {
-  // Upsert using (team_id, opponent_name, name) as conflict key
-  // Requires the fixed constraint from supabase_fix_player_constraint.sql
+  const cleanName = player.name.trim()
+
+  // Delete existing record for this player first (avoids constraint issues)
+  await supabase
+    .from('players')
+    .delete()
+    .eq('team_id', teamId)
+    .eq('team_side', 'opponent')
+    .eq('opponent_name', opponentName)
+    .eq('name', cleanName)
+
+  // Fresh insert
   const { data, error } = await supabase
     .from('players')
-    .upsert({
+    .insert({
       ...player,
-      name: player.name.trim(),
+      name: cleanName,
       team_id: teamId,
       team_side: 'opponent',
       opponent_name: opponentName,
-    }, { onConflict: 'team_id,opponent_name,name' })
+    })
     .select().single()
   if (error) throw error
   return data
