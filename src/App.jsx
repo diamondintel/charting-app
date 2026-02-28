@@ -537,12 +537,12 @@ export default function App() {
   const [lineup, setLineup]         = useState([])   // active BATTING lineup (starters only)
   const lineupRef = useRef([])                         // always-current ref for use in async handlers
   const lastLineupPosRef = useRef(0)                   // tracks last batter position across inning boundaries
-  // Keep ref in sync with state so handleHalfInning always reads current value
-  lastLineupPosRef.current = lineupPos
   const [subs, setSubs]             = useState([])   // bench / substitutes not yet in lineup
   const [ourLineup, setOurLineup]   = useState([])   // full Lady Hawks roster (starters + subs)
   const [oppLineup, setOppLineup]   = useState([])   // full opponent roster (starters + subs)
   const [lineupPos, setLineupPos]   = useState(0)
+  // Keep ref in sync with state — must be AFTER lineupPos declaration
+  lastLineupPosRef.current = lineupPos
   const [manualBatterName, setManualBatterName] = useState('')
   // LINEUP MODE: 'standard'=9, 'dp_flex'=10 (9 bat), 'eh'=10 (10 bat), 'dp_flex_eh'=11 (10 bat), 'free_sub'=full roster
   const [lineupMode, setLineupMode] = useState('standard')
