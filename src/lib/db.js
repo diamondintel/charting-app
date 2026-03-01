@@ -448,3 +448,73 @@ export async function getSavedOpponentTeams(teamId) {
   const names = [...new Set((data || []).map(r => r.opponent_name))].sort()
   return names
 }
+
+// ─── F-16: Opponent Scouting ──────────────────────────────────────────────────
+
+export async function saveScoutingBoxScore(teamId, opponentName, data) {
+  const { error } = await supabase
+    .from('opponent_scouting')
+    .insert({
+      team_id:       teamId,
+      opponent_name: opponentName,
+      game_date:     data.game_date || null,
+      game_vs:       data.game_vs || null,
+      raw_extracted: data.raw_extracted || {},
+      batters:       data.batters || [],
+      pitchers:      data.pitchers || [],
+    })
+  if (error) throw error
+}
+
+export async function getScoutingBoxScores(teamId, opponentName) {
+  const { data, error } = await supabase
+    .from('opponent_scouting')
+    .select('*')
+    .eq('team_id', teamId)
+    .eq('opponent_name', opponentName)
+    .order('uploaded_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+export async function deleteScoutingBoxScore(id) {
+  const { error } = await supabase
+    .from('opponent_scouting')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function saveScoutingReport(teamId, opponentName, report, gamesAnalyzed) {
+  const { error } = await supabase
+    .from('opponent_scouting_report')
+    .upsert({
+      team_id:        teamId,
+      opponent_name:  opponentName,
+      report,
+      games_analyzed: gamesAnalyzed,
+      generated_at:   new Date().toISOString(),
+    }, { onConflict: 'team_id,opponent_name' })
+  if (error) throw error
+}
+
+export async function getScoutingReport(teamId, opponentName) {
+  const { data, error } = await supabase
+    .from('opponent_scouting_report')
+    .select('*')
+    .eq('team_id', teamId)
+    .eq('opponent_name', opponentName)
+    .single()
+  if (error && error.code !== 'PGRST116') throw error
+  return data || null
+}
+
+export async function getOpponentsWithScouting(teamId) {
+  const { data, error } = await supabase
+    .from('opponent_scouting_report')
+    .select('opponent_name, games_analyzed, generated_at')
+    .eq('team_id', teamId)
+    .order('opponent_name')
+  if (error) throw error
+  return data || []
+}

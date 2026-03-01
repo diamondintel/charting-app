@@ -4,6 +4,7 @@ import ResetPasswordScreen from './components/ResetPasswordScreen.jsx'
 import { supabase, signOut } from './lib/supabase.js'
 import { useToast } from './components/Toast.jsx'
 import PitcherScoutingReport from './components/PitcherScoutingReport.jsx'
+import OpponentScouting from './components/OpponentScouting.jsx'
 import GameSummary from './components/GameSummary.jsx'
 import { exportGameSummaryPDF } from './lib/exportPDF.js'
 import { getClaudeRecommendations, generatePostABSummary, TRIGGER_LABELS } from './lib/claudeAI.js'
@@ -154,6 +155,7 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
   const [selectedTeam, setSelectedTeam] = useState(null)
   const [selectedPitcher, setSelectedPitcher] = useState(null)
   const [showScoutingReport, setShowScoutingReport] = useState(false)
+  const [showOpponentScouting, setShowOpponentScouting] = useState(false)
   const [loading, setLoading]           = useState(true)
   const [opponent, setOpponent]         = useState('')
   const [customOpponent, setCustomOpponent] = useState('')
@@ -278,6 +280,25 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
                   />
                 )}
                 <input type="date" value={gameDate} onChange={e => setGameDate(e.target.value)} />
+                {opponent && opponent !== '__custom__' && (
+                  <button
+                    onClick={() => setShowOpponentScouting(true)}
+                    style={{
+                      padding:'10px 14px', borderRadius:6, cursor:'pointer',
+                      background:'rgba(245,166,35,0.08)',
+                      border:'1px solid rgba(245,166,35,0.35)',
+                      color:'var(--gold)', fontFamily:"'Share Tech Mono',sans-serif",
+                      fontSize:10, letterSpacing:1, display:'flex', alignItems:'center', gap:8,
+                      textAlign:'left',
+                    }}
+                  >
+                    <span>🛩️</span>
+                    <div>
+                      <div>F-16 SCOUTING INTEL</div>
+                      <div style={{ fontSize:8, color:'var(--text-dim)', marginTop:1 }}>View opponent scouting report</div>
+                    </div>
+                  </button>
+                )}
 
                 {/* Pitcher selector */}
                 {pitchers.length > 0 && (
@@ -421,6 +442,13 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
           </>
         )}
       </div>
+      {showOpponentScouting && opponent && selectedTeam && (
+        <OpponentScouting
+          teamId={selectedTeam.team_id}
+          opponentName={opponent}
+          onClose={() => setShowOpponentScouting(false)}
+        />
+      )}
       {showScoutingReport && selectedPitcher && selectedTeam && (
         <PitcherScoutingReport
           teamId={selectedTeam.team_id}
