@@ -5,6 +5,7 @@ import { supabase, signOut } from './lib/supabase.js'
 import { useToast } from './components/Toast.jsx'
 import PitcherScoutingReport from './components/PitcherScoutingReport.jsx'
 import OpponentScouting from './components/OpponentScouting.jsx'
+import PreGamePrep from './components/PreGamePrep.jsx'
 import GameSummary from './components/GameSummary.jsx'
 import { exportGameSummaryPDF } from './lib/exportPDF.js'
 import { getClaudeRecommendations, generatePostABSummary, TRIGGER_LABELS } from './lib/claudeAI.js'
@@ -156,6 +157,7 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
   const [selectedPitcher, setSelectedPitcher] = useState(null)
   const [showScoutingReport, setShowScoutingReport] = useState(false)
   const [showOpponentScouting, setShowOpponentScouting] = useState(false)
+  const [showPreGamePrep, setShowPreGamePrep] = useState(false)
   const [loading, setLoading]           = useState(true)
   const [opponent, setOpponent]         = useState('')
   const [customOpponent, setCustomOpponent] = useState('')
@@ -236,7 +238,19 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
         {selectedTeam && (
           <>
             <div style={{ borderTop:'1px solid var(--border)', paddingTop:16 }}>
-              <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, letterSpacing:3, color:'var(--text-dim)', marginBottom:10 }}>NEW GAME</div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                <div style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:9, letterSpacing:3, color:'var(--text-dim)' }}>NEW GAME</div>
+                <button
+                  onClick={() => setShowPreGamePrep(true)}
+                  style={{
+                    padding:'5px 12px', borderRadius:4, cursor:'pointer',
+                    background:'rgba(0,212,255,0.08)',
+                    border:'1px solid rgba(0,212,255,0.3)',
+                    color:'var(--cyan)',
+                    fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1,
+                  }}
+                >🎯 PRE-GAME PREP</button>
+              </div>
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                 <select
                   value={customOpponent ? '__custom__' : opponent}
@@ -442,6 +456,12 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
           </>
         )}
       </div>
+      {showPreGamePrep && selectedTeam && (
+        <PreGamePrep
+          teamId={selectedTeam.team_id}
+          onClose={() => { setShowPreGamePrep(false); getSavedOpponentTeams(selectedTeam.team_id).then(setSavedOpponents) }}
+        />
+      )}
       {showOpponentScouting && opponent && selectedTeam && (
         <OpponentScouting
           teamId={selectedTeam.team_id}

@@ -3,7 +3,8 @@ import styles from './RosterTab.module.css'
 import {
   getPlayers, getTeams, getPlayersForTeam,
   upsertPlayer, upsertPitcher, updatePlayer, deletePlayer,
-  upsertOpponentPlayer, clearOpponentLineup, getOpponentLineup
+  upsertOpponentPlayer, clearOpponentLineup, getOpponentLineup,
+  getSavedOpponentTeams
 } from '../lib/db'
 
 const BATTER_TYPES = ['unknown', 'power', 'contact', 'slapper']
@@ -440,6 +441,8 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
   const [allTeams, setAllTeams] = useState([])
   const [selectedDbTeam, setSelectedDbTeam] = useState('')
   const [loadingDb, setLoadingDb] = useState(false)
+  const [savedOpponents, setSavedOpponents] = useState([])
+  const [saveSuccess, setSaveSuccess] = useState(false)
   // OCR state
   const [ocrLoading, setOcrLoading]   = useState(false)
   const [ocrError, setOcrError]       = useState(null)
@@ -449,7 +452,10 @@ function OpponentLineup({ teamId, opponentName, lineupMode = 'standard' }) {
 
   useEffect(() => {
     getTeams().then(setAllTeams).catch(console.error)
-  }, [])
+    if (teamId) {
+      getSavedOpponentTeams(teamId).then(setSavedOpponents).catch(console.error)
+    }
+  }, [teamId])
 
   useEffect(() => {
     if (!opponentName) return
@@ -686,6 +692,9 @@ If you cannot read any names, return an empty array: []`
         })
       }
       load()
+      getSavedOpponentTeams(teamId).then(setSavedOpponents).catch(console.error)
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
     } catch(e) { setError(e.message) }
     finally { setSaving(false) }
   }
@@ -718,8 +727,10 @@ If you cannot read any names, return an empty array: []`
           </div>
         </div>
         <div className={styles.headerBtns}>
-          <button className={styles.saveBtn} onClick={handleSave} disabled={saving}>
-            {saving ? 'SAVING...' : '✓ SAVE LINEUP'}
+          <button className={styles.saveBtn} onClick={handleSave} disabled={saving}
+            style={saveSuccess ? { background:'rgba(0,229,160,0.15)', borderColor:'rgba(0,229,160,0.4)', color:'var(--green)' } : {}}
+          >
+            {saving ? 'SAVING...' : saveSuccess ? '✓ SAVED FOR FUTURE GAMES' : '✓ SAVE LINEUP'}
           </button>
           <button className={styles.cancelBtn} onClick={handleClear}>CLEAR ALL</button>
         </div>
@@ -805,30 +816,96 @@ If you cannot read any names, return an empty array: []`
 
       {/* ── Load from database ── */}
       <div className={styles.loadFromDb}>
-        <div className={styles.loadFromDbLabel}>LOAD ROSTER FROM DATABASE</div>
-        <div className={styles.loadFromDbRow}>
-          <select
-            className={styles.dbTeamSelect}
-            value={selectedDbTeam}
-            onChange={e => setSelectedDbTeam(e.target.value)}
-          >
-            <option value="">— Select opponent team —</option>
-            {allTeams
-              .filter(t => t.team_id !== teamId)
-              .map(t => (
-                <option key={t.team_id} value={t.team_id}>{t.name}</option>
+        <div className={styles.loadFromDbLabel}>LOAD PREVIOUSLY SAVED ROSTER</div>
+
+        {/* Saved opponent rosters from prior games */}
+        {savedOpponents.length > 0 && (
+          <div style={{ marginBottom:10 }}>
+            <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:'var(--green)', letterSpacing:1, marginBottom:6 }}>
+              ✓ {savedOpponents.length} OPPONENT ROSTER{savedOpponents.length > 1 ? 'S' : ''} SAVED
+            </div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+              {savedOpponents.map(name => (
+                <button
+                  key={name}
+                  onClick={async () => {
+                    const players = await getOpponentLineup(teamId, name)
+                    if (players.length > 0) {
+                      const populated = Array.from({ length: Math.max(totalSlots, players.length) }, (_, i) => {
+                        const p = players.find(x => x.lineup_order === i+1) || players[i]
+                        return p
+                          ? { spot:i+1, name:p.name, jersey:p.jersey||'', batter_type:p.batter_type||'unknown', position:p.position||'' }
+                          : { spot:i+1, name:'', jersey:'', batter_type:'unknown', position:'' }
+                      })
+                      setRows(populated)
+                    }
+                  }}
+                  style={{
+                    padding:'5px 10px', borderRadius:4, cursor:'pointer', fontSize:11,
+                    background: name === opponentName ? 'rgba(0,229,160,0.12)' : 'rgba(0,212,255,0.07)',
+                    border: `1px solid ${name === opponentName ? 'rgba(0,229,160,0.35)' : 'rgba(0,212,255,0.2)'}`,
+                    color: name === opponentName ? 'var(--green)' : 'var(--cyan)',
+                    fontFamily:"'DM Sans',sans-serif",
+                  }}
+                >
+                  {name === opponentName ? '● ' : ''}{name}
+                </button>
               ))}
-          </select>
-          <button
-            className={styles.loadDbBtn}
-            onClick={handleLoadFromDb}
-            disabled={!selectedDbTeam || loadingDb}
-          >
-            {loadingDb ? 'LOADING...' : '⬇ LOAD ROSTER'}
-          </button>
-        </div>
+            </div>
+            <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:'var(--text-dim)', marginTop:6 }}>
+              {opponentName && savedOpponents.includes(opponentName) 
+                ? `✓ ${opponentName} roster will auto-load — you can edit before saving`
+                : 'Tap a team to load their saved roster into the lineup'}
+            </div>
+          </div>
+        )}
+
+        {/* Load from saved opponents */}
+        {savedOpponents.filter(name => name !== opponentName).length > 0 && (
+          <>
+            <div className={styles.loadFromDbLabel} style={{ marginTop: savedOpponents.length > 0 ? 12 : 0 }}>
+              LOAD FROM SAVED OPPONENT
+            </div>
+            <div className={styles.loadFromDbRow}>
+              <select
+                className={styles.dbTeamSelect}
+                value={selectedDbTeam}
+                onChange={e => setSelectedDbTeam(e.target.value)}
+              >
+                <option value="">— Select saved opponent —</option>
+                {savedOpponents
+                  .filter(name => name !== opponentName)
+                  .map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+              </select>
+              <button
+                className={styles.loadDbBtn}
+                onClick={async () => {
+                  if (!selectedDbTeam) return
+                  try {
+                    const players = await getOpponentLineup(teamId, selectedDbTeam)
+                    if (players.length > 0) {
+                      setRows(players.map(p => ({
+                        player_id:    p.player_id,
+                        lineup_order: p.lineup_order,
+                        jersey:       p.jersey || '',
+                        name:         p.name   || '',
+                        position:     p.position || '',
+                        batter_type:  p.batter_type || 'R',
+                        team_side:    'opponent',
+                      })))
+                    }
+                  } catch(e) { setError(e.message) }
+                }}
+                disabled={!selectedDbTeam}
+              >
+                ⬇ LOAD ROSTER
+              </button>
+            </div>
+          </>
+        )}
         <div className={styles.loadFromDbHint}>
-          Loads the selected team's roster into the lineup. You can reorder or edit before saving.
           Current mode: <strong style={{color:'var(--gold)'}}>{cfg.label}</strong> — {cfg.desc}.
         </div>
       </div>
