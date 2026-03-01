@@ -86,11 +86,12 @@ TEAM IDENTIFICATION — CRITICAL:
 - Set "game_vs" to the OTHER team's name (the panel you did NOT extract)
 - If unsure which side, pick the closest name match
 
-CRITICAL NAME RULES:
-- Do NOT guess or invent first names — use only what is clearly readable
-- If truncated, use initial + last name (e.g. "C Grigg") — never expand
-- Strip birth years (2030, 2031, 2032) from names
-- Strip jersey refs from name field
+NAME EXTRACTION — COPY EXACTLY AS SHOWN:
+- Copy the player name EXACTLY as it appears in the lineup column — do not rewrite, guess, or "clean up"
+- GameChanger names look like: "Carter Grigg 2032 #8 (SS)" or "Mary Ingrassia #50 (LF)" or "Alasia Lai 2030 #9"
+- Copy the FULL raw text from the name cell verbatim — our system will clean it automatically
+- NEVER substitute a different name, spelling, or guess at a truncated first name
+- If text is cut off, copy whatever IS visible including any "..." characters
 
 Return ONLY this JSON, no other text:
 {
