@@ -50,37 +50,51 @@ async function extractBoxScore(base64) {
           },
           {
             type: 'text',
-            text: `This is a GameChanger softball box score screenshot. Extract all data.
+            text: `This is a GameChanger softball box score screenshot. I need to extract stats for ONE specific team only.
 
-Return ONLY a JSON object with this exact structure:
+CRITICAL RULES:
+- GameChanger box scores show ONE team's lineup at a time under a bold team header
+- Extract ONLY the team shown in the bold/highlighted header at the top of the lineup section
+- Do NOT extract the opposing team's stats - they are NOT shown in this section
+- The "game_vs" field is just the name of who they played against (the other team in the score)
+- Batters listed are ONLY players from the primary team shown
+
+Clean up truncated names: "D Ferrar...23" → "D Ferrara", "M Kalei...#99" → "M Kaleikini"
+
+CRITICAL NAME RULES:
+- If a name is truncated (ends with "..." or cuts off mid-name), use ONLY what is clearly visible
+- Do NOT guess, complete, or invent any part of a name you cannot fully read
+- If you can only read a last name clearly, use just the last name
+- If you can read an initial + last name like "C Grigg", use exactly "C Grigg" — do not expand to a full first name
+- Jersey numbers in the name string (e.g. "Carter Grigg 2032 #8") should be stripped — put number in the jersey field only
+- Birth years (2030, 2031, 2032) in the name string should be stripped from the name field
+
+Return ONLY this JSON, no other text:
 {
-  "team_name": "team name from box score header",
-  "game_vs": "opposing team name if visible",
-  "game_date": "date if visible (YYYY-MM-DD format)",
+  "team_name": "exact team name from the bold section header e.g. FLORIDA IMPACT PREMIER FERRARA 14U",
+  "game_vs": "the OTHER team they played against (shown in score header, NOT in lineup)",
+  "game_date": "YYYY-MM-DD if visible, empty string if not",
   "final_score": "score if visible e.g. 3-1",
   "batters": [
     {
-      "name": "player name (clean up truncation like D Ferrar...23 → D Ferrara)",
+      "name": "player full name cleaned up",
       "jersey": "jersey number as string",
-      "position": "position abbreviation",
+      "position": "position abbreviation e.g. SS, CF, P, C, 1B",
       "ab": 0, "r": 0, "h": 0, "rbi": 0, "bb": 0, "so": 0
     }
   ],
   "pitchers": [
     {
       "name": "pitcher name",
-      "jersey": "jersey number",
+      "jersey": "jersey number as string",
       "ip": "5.0", "h": 0, "r": 0, "er": 0, "bb": 0, "so": 0,
-      "result": "W or L or blank"
+      "result": "W or L or empty string"
     }
   ]
 }
 
-Important:
-- Try to clean up truncated names (D Ferrar...23 → D Ferrara, M Kalei...#99 → M Kaleialoha or similar)
-- Include ALL batters shown
-- If a field is not visible, use 0 for numbers or empty string for text
-- Return ONLY the JSON, no other text`
+Include ALL individual batters. Exclude any TEAM totals row.
+Return ONLY the JSON.`
           }
         ]
       }]
@@ -96,21 +110,43 @@ Important:
   return JSON.parse(clean)
 }
 
+// ── Normalize player name — strips birth years and position suffixes ─────────
+function normalizeName(raw) {
+  if (!raw) return ''
+  return raw
+    .replace(/\s*\d{4}\s*/g, ' ')   // remove birth years like 2030, 2031, 2032
+    .replace(/\s*#\d+\s*/g, ' ')    // remove jersey refs like #8
+    .replace(/\s*\([^)]+\)\s*/g, ' ')  // remove position in parens like (SS, 3B)
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// ── Extract jersey number from raw name string ────────────────────────────────
+function extractJersey(raw, fallback) {
+  if (fallback && fallback !== '0' && fallback !== '') return fallback
+  const match = (raw || '').match(/#(\d+)/)
+  return match ? match[1] : ''
+}
+
 // ── Generate AI scouting report from all box scores ──────────────────────────
 async function generateScoutingReport(opponentName, boxScores) {
-  // Aggregate stats across all games
-  const batterMap = {}
+  // Aggregate stats with normalized names to prevent splitting
+  const batterMap  = {}
   const pitcherMap = {}
 
   for (const game of boxScores) {
-    const batters  = game.batters  || []
-    const pitchers = game.pitchers || []
-
-    for (const b of batters) {
-      const key = b.name?.trim().toLowerCase()
+    for (const b of (game.batters || [])) {
+      const rawName = b.name || ''
+      const key     = normalizeName(rawName).toLowerCase()
       if (!key || key === 'team' || key === 'totals') continue
+
       if (!batterMap[key]) {
-        batterMap[key] = { name: b.name, jersey: b.jersey, position: b.position, games: 0, ab: 0, r: 0, h: 0, rbi: 0, bb: 0, so: 0 }
+        batterMap[key] = {
+          name:     normalizeName(rawName),
+          jersey:   extractJersey(rawName, b.jersey),
+          position: b.position || '',
+          games: 0, ab: 0, r: 0, h: 0, rbi: 0, bb: 0, so: 0
+        }
       }
       batterMap[key].games += 1
       batterMap[key].ab  += Number(b.ab)  || 0
@@ -119,13 +155,22 @@ async function generateScoutingReport(opponentName, boxScores) {
       batterMap[key].rbi += Number(b.rbi) || 0
       batterMap[key].bb  += Number(b.bb)  || 0
       batterMap[key].so  += Number(b.so)  || 0
+      // Keep most recent jersey/position if missing
+      if (!batterMap[key].jersey) batterMap[key].jersey = extractJersey(rawName, b.jersey)
+      if (!batterMap[key].position && b.position) batterMap[key].position = b.position
     }
 
-    for (const p of pitchers) {
-      const key = p.name?.trim().toLowerCase()
+    for (const p of (game.pitchers || [])) {
+      const rawName = p.name || ''
+      const key     = normalizeName(rawName).toLowerCase()
       if (!key) continue
+
       if (!pitcherMap[key]) {
-        pitcherMap[key] = { name: p.name, jersey: p.jersey, games: 0, ip: 0, h: 0, r: 0, er: 0, bb: 0, so: 0 }
+        pitcherMap[key] = {
+          name:   normalizeName(rawName),
+          jersey: extractJersey(rawName, p.jersey),
+          games: 0, ip: 0, h: 0, r: 0, er: 0, bb: 0, so: 0
+        }
       }
       pitcherMap[key].games += 1
       pitcherMap[key].ip += parseFloat(p.ip) || 0
@@ -137,17 +182,40 @@ async function generateScoutingReport(opponentName, boxScores) {
     }
   }
 
-  const batterSummary = Object.values(batterMap).map(b => {
-    const avg = b.ab > 0 ? (b.h / b.ab).toFixed(3) : '.000'
-    const kRate = b.ab > 0 ? Math.round((b.so / b.ab) * 100) : 0
-    return `${b.name} ${b.jersey ? '#'+b.jersey : ''} ${b.position || ''}: ${b.games}G, ${b.ab}AB, ${b.h}H, AVG ${avg}, ${b.rbi}RBI, ${b.bb}BB, ${b.so}K (K-rate ${kRate}%)`
-  }).join('\n')
+  // Build structured data objects (not text summaries)
+  const batters = Object.values(batterMap)
+    .filter(b => b.ab >= 2) // minimum sample
+    .sort((a, b) => b.ab - a.ab)
+    .map(b => ({
+      name:     b.name,
+      jersey:   b.jersey ? `#${b.jersey}` : '',
+      position: b.position,
+      games:    b.games,
+      ab:       b.ab,
+      h:        b.h,
+      avg:      b.ab > 0 ? (b.h / b.ab).toFixed(3) : '.000',
+      rbi:      b.rbi,
+      bb:       b.bb,
+      so:       b.so,
+      k_rate:   b.ab > 0 ? Math.round((b.so / b.ab) * 100) : 0,
+      contact:  b.ab > 0 ? Math.round(((b.ab - b.so) / b.ab) * 100) : 0,
+    }))
 
-  const pitcherSummary = Object.values(pitcherMap).map(p => {
-    const era = p.ip > 0 ? ((p.er / p.ip) * 7).toFixed(2) : '-'
-    const hPer = p.ip > 0 ? (p.h / p.ip).toFixed(1) : '-'
-    return `${p.name} ${p.jersey ? '#'+p.jersey : ''}: ${p.games}G, ${p.ip.toFixed(1)}IP, ${p.h}H, ERA ${era}, ${p.so}K, ${p.bb}BB, ${hPer}H/IP`
-  }).join('\n')
+  const pitchers = Object.values(pitcherMap)
+    .filter(p => p.ip >= 1)
+    .sort((a, b) => b.ip - a.ip)
+    .map(p => ({
+      name:   p.name,
+      jersey: p.jersey ? `#${p.jersey}` : '',
+      games:  p.games,
+      ip:     p.ip.toFixed(1),
+      h:      p.h,
+      er:     p.er,
+      so:     p.so,
+      bb:     p.bb,
+      era:    p.ip > 0 ? ((p.er / p.ip) * 7).toFixed(2) : '-',
+      h_per_ip: p.ip > 0 ? (p.h / p.ip).toFixed(1) : '-',
+    }))
 
   const response = await fetch('/api/claude', {
     method: 'POST',
@@ -157,66 +225,73 @@ async function generateScoutingReport(opponentName, boxScores) {
       max_tokens: 2000,
       messages: [{
         role: 'user',
-        content: `You are an elite softball pitching coach analyzing opponent scouting data for ${opponentName}.
+        content: `You are an elite softball pitching coach. Generate a pre-game scouting report for ${opponentName} based on ${boxScores.length} games of data.
 
-AGGREGATED STATS FROM ${boxScores.length} GAMES:
+CRITICAL RULES:
+- Use ONLY the exact names provided in the data below. Do NOT invent, guess, or alter any player names.
+- Use the jersey numbers exactly as provided. Use "" if jersey is empty.
+- Base ALL assessments strictly on the stats provided. No speculation.
 
-BATTERS:
-${batterSummary}
+BATTER DATA (aggregated across all games):
+${JSON.stringify(batters, null, 2)}
 
-PITCHERS:
-${pitcherSummary}
+PITCHER DATA:
+${JSON.stringify(pitchers, null, 2)}
 
-Generate a pre-game scouting intelligence report. Return ONLY a JSON object:
+Return ONLY this JSON structure, no other text:
 {
   "danger_zone": [
     {
-      "name": "player name",
-      "jersey": "#N",
-      "position": "SS",
+      "name": "exact name from data",
+      "jersey": "jersey from data or empty string",
+      "position": "position from data",
       "threat_level": "HIGH or MEDIUM",
-      "stats": "brief stat line e.g. .420 avg, 3 RBI in 4 games",
-      "insight": "1-2 sentence tactical insight — how to approach this batter",
-      "tags": ["CONTACT", "POWER", "SPEED", "CLUTCH", "PATIENT"]
+      "stats": "concise stat line e.g. .420 avg, 3 RBI in 4 games",
+      "insight": "1-2 sentence tactical coaching insight — specific pitch/zone strategy",
+      "tags": ["CONTACT","POWER","SPEED","CLUTCH","PATIENT"]
     }
   ],
   "attack_zone": [
     {
-      "name": "player name",
-      "jersey": "#N", 
-      "position": "CF",
-      "stats": "brief stat line",
+      "name": "exact name from data",
+      "jersey": "jersey from data or empty string",
+      "position": "position from data",
+      "stats": "concise stat line",
       "insight": "why she is an easy out and how to exploit",
-      "tags": ["HIGH-K", "FREE-OUT", "WEAK-CONTACT", "CHASE"]
+      "tags": ["HIGH-K","FREE-OUT","WEAK-CONTACT","CHASE"]
     }
   ],
   "pitcher_intel": [
     {
-      "name": "pitcher name",
-      "jersey": "#N",
-      "stats": "ERA, H/IP, K rate",
-      "insight": "is she hittable? what approach to take vs her?",
+      "name": "exact name from data",
+      "jersey": "jersey from data or empty string",
+      "stats": "ERA, H/IP, K stats",
+      "insight": "is she hittable? approach at plate vs her?",
       "threat": "HIGH or MEDIUM or LOW"
     }
   ],
-  "team_tendencies": "2-3 sentences on overall team offensive approach",
-  "game_plan": "3-4 sentence recommended game plan for today including which spots in the order to attack and which to protect against"
+  "team_tendencies": "2-3 sentences on overall offensive approach based strictly on the data",
+  "game_plan": "4-5 sentence tactical game plan with specific player names from the data"
 }
 
-Be specific and tactical. Use softball-specific language coaches understand.
-Only include players with meaningful data (2+ AB).
-Danger zone = .300+ avg OR multiple RBI OR low K rate.
-Attack zone = .150 or below avg OR high K rate OR 0 hits in multiple games.`
+Danger zone: AVG .280+ OR multi-RBI OR low K-rate (under 20%) with contact.
+Attack zone: AVG .150 or below OR K-rate 30%+ OR 0 hits in 3+ AB.
+Only include players with 2+ AB. Use only names from the data provided.`
       }]
     })
   })
 
-  if (!response.ok) throw new Error(`Report generation failed: ${response.status}`)
+  if (!response.ok) {
+    const err = await response.text().catch(() => '')
+    throw new Error(`API ${response.status}: ${err.slice(0, 100)}`)
+  }
   const data = await response.json()
   const text = data.content?.find(b => b.type === 'text')?.text || ''
   const clean = text.replace(/```json|```/g, '').trim()
   return JSON.parse(clean)
 }
+
+// ── Generate AI scouting report from all box scores ──────────────────────────
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function OpponentScouting({ teamId, opponentName, onClose }) {
@@ -227,6 +302,7 @@ export default function OpponentScouting({ teamId, opponentName, onClose }) {
   const [uploadProgress, setUploadProgress] = useState('')
   const [error, setError]               = useState(null)
   const [view, setView]                 = useState('report') // 'report' | 'games'
+  const [pendingBoxScores, setPendingBoxScores] = useState([]) // awaiting team confirmation
   const fileInputRef = useRef()
 
   useEffect(() => { load() }, [teamId, opponentName])
@@ -248,23 +324,21 @@ export default function OpponentScouting({ teamId, opponentName, onClose }) {
     setUploading(true)
     setError(null)
 
-    let successCount = 0
+    const pending = []
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
-      setUploadProgress(`Processing ${i + 1} of ${files.length}: ${file.name}`)
+      setUploadProgress(`Extracting ${i + 1} of ${files.length}: ${file.name}`)
       try {
-        const base64  = await compressImage(file)
+        const base64    = await compressImage(file)
         const extracted = await extractBoxScore(base64)
-        await saveScoutingBoxScore(teamId, opponentName, {
-          game_date:     extracted.game_date || null,
-          game_vs:       extracted.game_vs   || null,
-          raw_extracted: extracted,
-          batters:       extracted.batters   || [],
-          pitchers:      extracted.pitchers  || [],
+        pending.push({
+          extracted,
+          fileName: file.name,
+          confirmed: true, // default confirmed, coach can toggle
+          teamNameOverride: '', // coach can correct team name
         })
-        successCount++
       } catch(e) {
-        console.error(`Failed to process ${file.name}:`, e)
+        console.error(`Failed: ${file.name}`, e)
       }
     }
 
@@ -272,12 +346,37 @@ export default function OpponentScouting({ teamId, opponentName, onClose }) {
     setUploading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
 
-    if (successCount > 0) {
-      await load()
-      // Auto-generate report after upload
-      await handleGenerateReport()
+    if (pending.length > 0) {
+      setPendingBoxScores(pending)
     } else {
       setError('No box scores could be processed. Try clearer screenshots.')
+    }
+  }
+
+  async function handleConfirmSave() {
+    const toSave = pendingBoxScores.filter(p => p.confirmed)
+    if (!toSave.length) { setPendingBoxScores([]); return }
+
+    setUploading(true)
+    setError(null)
+    let count = 0
+    for (const item of toSave) {
+      try {
+        await saveScoutingBoxScore(teamId, opponentName, {
+          game_date:     item.extracted.game_date || null,
+          game_vs:       item.extracted.game_vs   || null,
+          raw_extracted: item.extracted,
+          batters:       item.extracted.batters   || [],
+          pitchers:      item.extracted.pitchers  || [],
+        })
+        count++
+      } catch(e) { console.error('Save failed:', e) }
+    }
+    setPendingBoxScores([])
+    setUploading(false)
+    if (count > 0) {
+      await load()
+      await handleGenerateReport()
     }
   }
 
@@ -434,6 +533,91 @@ export default function OpponentScouting({ teamId, opponentName, onClose }) {
               fontFamily:"'DM Sans',sans-serif", fontSize:12, color:red,
             }}>
               {error}
+            </div>
+          )}
+
+          {/* ── Pending Confirmation Panel ── */}
+          {pendingBoxScores.length > 0 && (
+            <div style={{
+              background:'rgba(245,166,35,0.06)', border:`1px solid rgba(245,166,35,0.4)`,
+              borderRadius:8, padding:16,
+            }}>
+              <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:gold, letterSpacing:2, marginBottom:4 }}>
+                ⚠ VERIFY TEAMS BEFORE SAVING
+              </div>
+              <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:12, color:dim, marginBottom:12 }}>
+                Confirm Claude extracted the correct team. Uncheck any that look wrong.
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:12 }}>
+                {pendingBoxScores.map((item, i) => {
+                  const detected = item.extracted.team_name || 'Unknown team'
+                  const vs       = item.extracted.game_vs   || '?'
+                  const batters  = item.extracted.batters?.length || 0
+                  const isCorrect = detected.toLowerCase().includes(opponentName.toLowerCase().split(' ')[0])
+                    || opponentName.toLowerCase().includes(detected.toLowerCase().split(' ')[0])
+                  return (
+                    <div key={i} style={{
+                      background: item.confirmed ? 'rgba(0,229,160,0.05)' : 'rgba(255,59,48,0.05)',
+                      border:`1px solid ${item.confirmed ? 'rgba(0,229,160,0.2)' : 'rgba(255,59,48,0.2)'}`,
+                      borderRadius:6, padding:'10px 12px',
+                      display:'flex', alignItems:'flex-start', gap:10,
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={item.confirmed}
+                        onChange={e => setPendingBoxScores(prev => prev.map((p, idx) =>
+                          idx === i ? { ...p, confirmed: e.target.checked } : p
+                        ))}
+                        style={{ marginTop:2, accentColor: 'var(--green)', width:16, height:16, cursor:'pointer' }}
+                      />
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3 }}>
+                          <div style={{ fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:14,
+                            color: isCorrect ? green : gold }}>
+                            {detected}
+                          </div>
+                          {!isCorrect && (
+                            <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:gold,
+                              padding:'1px 6px', borderRadius:3, border:'1px solid rgba(245,166,35,0.4)' }}>
+                              ⚠ CHECK NAME
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:dim }}>
+                          vs {vs} · {batters} batters extracted
+                          {item.extracted.game_date ? ` · ${item.extracted.game_date}` : ''}
+                        </div>
+                        {!isCorrect && (
+                          <div style={{ marginTop:6, fontFamily:"'DM Sans',sans-serif", fontSize:11, color:gold }}>
+                            Expected: <strong>{opponentName}</strong> — uncheck if this is the wrong team's data
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button
+                  onClick={handleConfirmSave}
+                  disabled={uploading}
+                  style={{
+                    flex:1, padding:'10px', borderRadius:6, cursor:'pointer',
+                    background:'rgba(0,229,160,0.1)', border:'1px solid rgba(0,229,160,0.4)',
+                    color:green, fontFamily:"'Share Tech Mono',monospace", fontSize:10, letterSpacing:1,
+                  }}
+                >
+                  ✓ SAVE {pendingBoxScores.filter(p=>p.confirmed).length} CONFIRMED GAME{pendingBoxScores.filter(p=>p.confirmed).length !== 1 ? 'S' : ''}
+                </button>
+                <button
+                  onClick={() => setPendingBoxScores([])}
+                  style={{
+                    padding:'10px 16px', borderRadius:6, cursor:'pointer',
+                    background:'transparent', border:`1px solid ${border}`,
+                    color:dim, fontFamily:"'Share Tech Mono',monospace", fontSize:10,
+                  }}
+                >CANCEL</button>
+              </div>
             </div>
           )}
 

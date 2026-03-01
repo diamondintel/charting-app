@@ -39,11 +39,12 @@ function buildF16ScoutingContext(batterName, boxScores) {
   const lastName  = nameLower.split(' ').pop()
 
   let totalAB = 0, totalH = 0, totalRBI = 0, totalBB = 0, totalSO = 0, gamesFound = 0
+
+  // Pass 1: strict — exact full name match
   for (const game of boxScores) {
     for (const b of (game.batters || [])) {
       const bName = (b.name || '').toLowerCase().trim()
-      const isMatch = bName === nameLower || bName.includes(lastName) || nameLower.includes(bName.split(' ').pop())
-      if (isMatch && (Number(b.ab) > 0 || Number(b.bb) > 0)) {
+      if (bName === nameLower && (Number(b.ab) > 0 || Number(b.bb) > 0)) {
         gamesFound++
         totalAB  += Number(b.ab)  || 0
         totalH   += Number(b.h)   || 0
@@ -54,6 +55,26 @@ function buildF16ScoutingContext(batterName, boxScores) {
       }
     }
   }
+
+  // Pass 2: if no exact match, try identical last name (min 4 chars to avoid false positives)
+  if (gamesFound === 0 && lastName.length >= 4) {
+    for (const game of boxScores) {
+      for (const b of (game.batters || [])) {
+        const bName = (b.name || '').toLowerCase().trim()
+        const bLast = bName.split(' ').pop()
+        if (bLast === lastName && (Number(b.ab) > 0 || Number(b.bb) > 0)) {
+          gamesFound++
+          totalAB  += Number(b.ab)  || 0
+          totalH   += Number(b.h)   || 0
+          totalRBI += Number(b.rbi) || 0
+          totalBB  += Number(b.bb)  || 0
+          totalSO  += Number(b.so)  || 0
+          break
+        }
+      }
+    }
+  }
+
   if (gamesFound === 0) return null
 
   const avg     = totalAB > 0 ? (totalH / totalAB).toFixed(3) : '.000'

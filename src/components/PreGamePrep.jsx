@@ -75,15 +75,31 @@ async function extractBoxScore(base64) {
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
-          { type: 'text', text: `Extract the GameChanger softball box score. Return ONLY JSON:
+          { type: 'text', text: `This is a GameChanger softball box score. Extract stats for ONE team only.
+
+CRITICAL: GameChanger shows ONE team's lineup per section under a bold team header.
+- Extract ONLY the team shown in the bold section header
+- Do NOT extract the opposing team - they are not in the lineup list
+- "game_vs" is just who they played against (shown in the score at top, NOT in the lineup)
+- Clean up truncated names: "D Ferrar...23" becomes "D Ferrara"
+
+CRITICAL NAME RULES:
+- If a name is truncated (ends with "..." or cuts off mid-name), use ONLY what is clearly visible
+- Do NOT guess, complete, or invent any part of a name you cannot fully read
+- If you can only read a last name clearly, use just the last name
+- If you can read an initial + last name like "C Grigg", use exactly "C Grigg" — do not expand to a full first name
+- Jersey numbers in the name string (e.g. "Carter Grigg 2032 #8") should be stripped — put number in the jersey field only
+- Birth years (2030, 2031, 2032) in the name string should be stripped from the name field
+
+Return ONLY this JSON, no other text:
 {
-  "team_name": "team name",
-  "game_vs": "opposing team",
-  "game_date": "YYYY-MM-DD or empty",
-  "batters": [{"name":"","jersey":"","position":"","ab":0,"r":0,"h":0,"rbi":0,"bb":0,"so":0}],
-  "pitchers": [{"name":"","jersey":"","ip":"0.0","h":0,"r":0,"er":0,"bb":0,"so":0,"result":""}]
+  "team_name": "exact team name from bold section header",
+  "game_vs": "the OTHER team in the score header (not in the lineup)",
+  "game_date": "YYYY-MM-DD if visible, empty string if not",
+  "batters": [{"name":"full cleaned name","jersey":"number","position":"SS","ab":0,"r":0,"h":0,"rbi":0,"bb":0,"so":0}],
+  "pitchers": [{"name":"full name","jersey":"number","ip":"0.0","h":0,"r":0,"er":0,"bb":0,"so":0,"result":"W or L or empty"}]
 }
-Clean up truncated names. Return ONLY the JSON.` }
+Exclude TEAM totals row. Return ONLY the JSON.` }
         ]
       }]
     })
@@ -94,48 +110,80 @@ Clean up truncated names. Return ONLY the JSON.` }
   return JSON.parse(text.replace(/```json|```/g, '').trim())
 }
 
+// ── Normalize player name — strips birth years and position suffixes ─────────
+function normalizeName(raw) {
+  if (!raw) return ''
+  return raw
+    .replace(/\s*\d{4}\s*/g, ' ')
+    .replace(/\s*#\d+\s*/g, ' ')
+    .replace(/\s*\([^)]+\)\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+function extractJersey(raw, fallback) {
+  if (fallback && fallback !== '0' && fallback !== '') return fallback
+  const match = (raw || '').match(/#(\d+)/)
+  return match ? match[1] : ''
+}
+
 // ── Generate scouting report ──────────────────────────────────────────────────
 async function generateScoutingReport(opponentName, boxScores) {
-  const batterMap = {}
+  const batterMap  = {}
   const pitcherMap = {}
 
   for (const game of boxScores) {
     for (const b of (game.batters || [])) {
-      const key = b.name?.trim().toLowerCase()
+      const rawName = b.name || ''
+      const key     = normalizeName(rawName).toLowerCase()
       if (!key || key === 'team' || key === 'totals') continue
-      if (!batterMap[key]) batterMap[key] = { name: b.name, jersey: b.jersey, position: b.position, games: 0, ab: 0, h: 0, rbi: 0, bb: 0, so: 0 }
+      if (!batterMap[key]) batterMap[key] = {
+        name: normalizeName(rawName), jersey: extractJersey(rawName, b.jersey),
+        position: b.position || '', games: 0, ab: 0, h: 0, rbi: 0, bb: 0, so: 0
+      }
       batterMap[key].games++
       batterMap[key].ab  += Number(b.ab)  || 0
       batterMap[key].h   += Number(b.h)   || 0
       batterMap[key].rbi += Number(b.rbi) || 0
       batterMap[key].bb  += Number(b.bb)  || 0
       batterMap[key].so  += Number(b.so)  || 0
+      if (!batterMap[key].jersey) batterMap[key].jersey = extractJersey(rawName, b.jersey)
     }
     for (const p of (game.pitchers || [])) {
-      const key = p.name?.trim().toLowerCase()
+      const rawName = p.name || ''
+      const key     = normalizeName(rawName).toLowerCase()
       if (!key) continue
-      if (!pitcherMap[key]) pitcherMap[key] = { name: p.name, jersey: p.jersey, games: 0, ip: 0, h: 0, r: 0, er: 0, bb: 0, so: 0 }
+      if (!pitcherMap[key]) pitcherMap[key] = {
+        name: normalizeName(rawName), jersey: extractJersey(rawName, p.jersey),
+        games: 0, ip: 0, h: 0, er: 0, bb: 0, so: 0
+      }
       pitcherMap[key].games++
       pitcherMap[key].ip += parseFloat(p.ip) || 0
       pitcherMap[key].h  += Number(p.h)  || 0
-      pitcherMap[key].r  += Number(p.r)  || 0
       pitcherMap[key].er += Number(p.er) || 0
       pitcherMap[key].bb += Number(p.bb) || 0
       pitcherMap[key].so += Number(p.so) || 0
     }
   }
 
-  const batterSummary = Object.values(batterMap).map(b => {
-    const avg   = b.ab > 0 ? (b.h / b.ab).toFixed(3) : '.000'
-    const kRate = b.ab > 0 ? Math.round((b.so / b.ab) * 100) : 0
-    return `${b.name} #${b.jersey||'?'} ${b.position||''}: ${b.games}G ${b.ab}AB AVG ${avg} ${b.rbi}RBI ${b.bb}BB ${b.so}K (K% ${kRate})`
-  }).join('\n')
+  const batters = Object.values(batterMap)
+    .filter(b => b.ab >= 2)
+    .sort((a, b) => b.ab - a.ab)
+    .map(b => ({
+      name: b.name, jersey: b.jersey ? `#${b.jersey}` : '', position: b.position,
+      games: b.games, ab: b.ab, h: b.h,
+      avg: b.ab > 0 ? (b.h / b.ab).toFixed(3) : '.000',
+      rbi: b.rbi, bb: b.bb, so: b.so,
+      k_rate: b.ab > 0 ? Math.round((b.so / b.ab) * 100) : 0,
+    }))
 
-  const pitcherSummary = Object.values(pitcherMap).map(p => {
-    const era  = p.ip > 0 ? ((p.er / p.ip) * 7).toFixed(2) : '-'
-    const hPer = p.ip > 0 ? (p.h / p.ip).toFixed(1) : '-'
-    return `${p.name} #${p.pitcher||'?'}: ${p.games}G ${p.ip.toFixed(1)}IP ERA ${era} ${p.so}K ${p.bb}BB ${hPer}H/IP`
-  }).join('\n')
+  const pitchers = Object.values(pitcherMap)
+    .filter(p => p.ip >= 1)
+    .map(p => ({
+      name: p.name, jersey: p.jersey ? `#${p.jersey}` : '',
+      games: p.games, ip: p.ip.toFixed(1), h: p.h, er: p.er, so: p.so, bb: p.bb,
+      era: p.ip > 0 ? ((p.er / p.ip) * 7).toFixed(2) : '-',
+      h_per_ip: p.ip > 0 ? (p.h / p.ip).toFixed(1) : '-',
+    }))
 
   const response = await fetch('/api/claude', {
     method: 'POST',
@@ -145,19 +193,22 @@ async function generateScoutingReport(opponentName, boxScores) {
       max_tokens: 2000,
       messages: [{
         role: 'user',
-        content: `Elite softball pitching coach analyzing ${opponentName} — ${boxScores.length} games.
+        content: `Elite softball pitching coach. Generate scouting report for ${opponentName} (${boxScores.length} games).
 
-BATTERS:\n${batterSummary}\n\nPITCHERS:\n${pitcherSummary}
+CRITICAL: Use ONLY exact names from the data. Do NOT invent or alter any player names.
+
+BATTERS: ${JSON.stringify(batters)}
+PITCHERS: ${JSON.stringify(pitchers)}
 
 Return ONLY JSON:
 {
-  "danger_zone": [{"name":"","jersey":"#N","position":"","threat_level":"HIGH","stats":"","insight":"","tags":[]}],
-  "attack_zone": [{"name":"","jersey":"#N","position":"","stats":"","insight":"","tags":[]}],
-  "pitcher_intel": [{"name":"","jersey":"#N","stats":"","insight":"","threat":"HIGH"}],
+  "danger_zone": [{"name":"exact name from data","jersey":"from data","position":"from data","threat_level":"HIGH or MEDIUM","stats":"","insight":"","tags":[]}],
+  "attack_zone": [{"name":"exact name","jersey":"from data","position":"from data","stats":"","insight":"","tags":[]}],
+  "pitcher_intel": [{"name":"exact name","jersey":"from data","stats":"","insight":"","threat":"HIGH or MEDIUM or LOW"}],
   "team_tendencies": "",
   "game_plan": ""
 }
-Danger = AVG .300+ or multi-RBI. Attack = AVG .150- or K% 30%+. Only players with 2+ AB.`
+Danger = AVG .280+ or multi-RBI or K-rate under 20%. Attack = AVG .150- or K-rate 30%+. Only players with 2+ AB.`
       }]
     })
   })
