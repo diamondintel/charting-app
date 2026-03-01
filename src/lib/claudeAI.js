@@ -8,7 +8,7 @@
 // Architecture: rule-based fires instantly, Claude enriches async
 // If Claude fails, silently falls back to rule-based. No crashes.
 
-import { getBatterHistoricalData, saveAIBatterSummary } from './db.js'
+import { getBatterHistoricalData, saveAIBatterSummary, getScoutingBoxScores } from './db.js'
 
 const CLAUDE_MODEL = 'claude-sonnet-4-20250514'
 const API_URL      = '/api/claude'
@@ -30,6 +30,45 @@ function canCall(trigger) {
   return Date.now() - last >= (RATE_LIMITS[trigger] || 8000)
 }
 function markCalled(trigger) { callTimes[trigger] = Date.now() }
+
+
+// F-16: Build scouting intelligence from opponent box score data
+function buildF16ScoutingContext(batterName, boxScores) {
+  if (!boxScores || boxScores.length === 0) return null
+  const nameLower = batterName.toLowerCase().trim()
+  const lastName  = nameLower.split(' ').pop()
+
+  let totalAB = 0, totalH = 0, totalRBI = 0, totalBB = 0, totalSO = 0, gamesFound = 0
+  for (const game of boxScores) {
+    for (const b of (game.batters || [])) {
+      const bName = (b.name || '').toLowerCase().trim()
+      const isMatch = bName === nameLower || bName.includes(lastName) || nameLower.includes(bName.split(' ').pop())
+      if (isMatch && (Number(b.ab) > 0 || Number(b.bb) > 0)) {
+        gamesFound++
+        totalAB  += Number(b.ab)  || 0
+        totalH   += Number(b.h)   || 0
+        totalRBI += Number(b.rbi) || 0
+        totalBB  += Number(b.bb)  || 0
+        totalSO  += Number(b.so)  || 0
+        break
+      }
+    }
+  }
+  if (gamesFound === 0) return null
+
+  const avg     = totalAB > 0 ? (totalH / totalAB).toFixed(3) : '.000'
+  const kRate   = totalAB > 0 ? Math.round((totalSO / totalAB) * 100) : 0
+  const contact = totalAB > 0 ? Math.round(((totalAB - totalSO) / totalAB) * 100) : 0
+  const avgNum  = parseFloat(avg)
+  const threat  = avgNum >= 0.300 || totalRBI >= 2 ? 'HIGH - protect against'
+                : avgNum <= 0.150 || kRate >= 30   ? 'LOW - attack zone'
+                : 'MODERATE'
+
+  return `F-16 SEASON SCOUTING (${gamesFound} games, ${boxScores.length} box scores uploaded):
+Season line: ${totalAB}AB ${totalH}H AVG ${avg} ${totalRBI}RBI ${totalBB}BB ${totalSO}K
+Contact rate: ${contact}% | K-rate: ${kRate}%
+Threat level: ${threat}`
+}
 
 // ─── Layer 2: Detect which trigger situation this is ─────────────────────────
 export function detectTrigger({ paPitches, balls, strikes, gamePitches, batterName, lastOutcome }) {
@@ -124,7 +163,7 @@ const TRIGGER_INSTRUCTIONS = {
   mid_ab: `MID-AB GUIDANCE. Count-appropriate pitch selection. What patterns are building this AB? Best next pitch given the sequence so far.`,
 }
 
-function buildPrompt(trigger, context, historicalContext) {
+function buildPrompt(trigger, context, historicalContext, f16Context) {
   const {
     batter, batterType, balls, strikes, outs, inning, topBottom,
     ourRuns, oppRuns, on1b, on2b, on3b,
@@ -188,6 +227,7 @@ PITCHER TODAY
 ${pitcherToday}
 
 ${historicalContext}
+${f16Context ? '\n' + f16Context : ''}
 
 Respond ONLY in this exact JSON format, no other text:
 {
@@ -219,17 +259,23 @@ export async function getClaudeRecommendations(context) {
   markCalled(trigger)
 
   try {
-    // Layer 1 — historical context (parallel with everything else)
-    const historicalData = context.teamId && context.batter?.name && context.opponent
-      ? await getBatterHistoricalData(
-          context.teamId, context.batter.name, context.opponent
-        ).catch(() => null)
-      : null
+    // Layer 1 + F-16: fetch historical context AND scouting box scores in parallel
+    const [historicalData, scoutingBoxScores] = await Promise.all([
+      context.teamId && context.batter?.name && context.opponent
+        ? getBatterHistoricalData(context.teamId, context.batter.name, context.opponent).catch(() => null)
+        : Promise.resolve(null),
+      context.teamId && context.opponent
+        ? getScoutingBoxScores(context.teamId, context.opponent).catch(() => [])
+        : Promise.resolve([]),
+    ])
 
     const historicalContext = buildHistoricalContext(historicalData)
+    const f16Context = context.batter?.name
+      ? buildF16ScoutingContext(context.batter.name, scoutingBoxScores)
+      : null
 
     // Layer 3 — trigger-specific prompt
-    const prompt   = buildPrompt(trigger, context, historicalContext)
+    const prompt   = buildPrompt(trigger, context, historicalContext, f16Context)
     const result   = await callClaudeAPI(prompt, 700)
 
     if (!result?.recommendations || !result?.signals) return null
