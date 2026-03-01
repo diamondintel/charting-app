@@ -64,7 +64,7 @@ Return ONLY the JSON array, no other text.` }
 }
 
 // ── Extract box score (reusing F-16 pipeline) ─────────────────────────────────
-async function extractBoxScore(base64) {
+async function extractBoxScore(base64, opponentName) {
   const response = await fetch('/api/claude', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -75,21 +75,22 @@ async function extractBoxScore(base64) {
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
-          { type: 'text', text: `This is a GameChanger softball box score. Extract stats for ONE team only.
+          { type: 'text', text: `This is a GameChanger softball box score. I need stats for the team matching: "${activeOpponent}".
 
-CRITICAL: GameChanger shows ONE team's lineup per section under a bold team header.
-- Extract ONLY the team shown in the bold section header
-- Do NOT extract the opposing team - they are not in the lineup list
-- "game_vs" is just who they played against (shown in the score at top, NOT in the lineup)
-- Clean up truncated names: "D Ferrar...23" becomes "D Ferrara"
+GameChanger shows TWO teams — LEFT panel and RIGHT panel, each with their own bold header.
+
+TEAM IDENTIFICATION — CRITICAL:
+- Read BOTH bold section headers (left panel AND right panel)
+- Extract the section whose header most closely matches: "${activeOpponent}"
+- The team may appear on either the left OR right side depending on home/away
+- Set "game_vs" to the OTHER team's name (the panel you did NOT extract)
+- If unsure which side, pick the closest name match
 
 CRITICAL NAME RULES:
-- If a name is truncated (ends with "..." or cuts off mid-name), use ONLY what is clearly visible
-- Do NOT guess, complete, or invent any part of a name you cannot fully read
-- If you can only read a last name clearly, use just the last name
-- If you can read an initial + last name like "C Grigg", use exactly "C Grigg" — do not expand to a full first name
-- Jersey numbers in the name string (e.g. "Carter Grigg 2032 #8") should be stripped — put number in the jersey field only
-- Birth years (2030, 2031, 2032) in the name string should be stripped from the name field
+- Do NOT guess or invent first names — use only what is clearly readable
+- If truncated, use initial + last name (e.g. "C Grigg") — never expand
+- Strip birth years (2030, 2031, 2032) from names
+- Strip jersey refs from name field
 
 Return ONLY this JSON, no other text:
 {
@@ -371,7 +372,7 @@ export default function PreGamePrep({ teamId, onClose }) {
       setUploadProgress(`Processing ${i + 1} of ${files.length}...`)
       try {
         const base64    = await compressImage(files[i])
-        const extracted = await extractBoxScore(base64)
+        const extracted = await extractBoxScore(base64, opponentName)
         await saveScoutingBoxScore(teamId, activeOpponent, {
           game_date:     extracted.game_date || null,
           game_vs:       extracted.game_vs   || null,

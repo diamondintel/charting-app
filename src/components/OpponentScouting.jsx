@@ -34,7 +34,7 @@ async function compressImage(file) {
 }
 
 // ── Extract box score from a single screenshot via Claude Vision ──────────────
-async function extractBoxScore(base64) {
+async function extractBoxScore(base64, opponentName) {
   const response = await fetch('/api/claude', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -50,16 +50,16 @@ async function extractBoxScore(base64) {
           },
           {
             type: 'text',
-            text: `This is a GameChanger softball box score screenshot. I need to extract stats for ONE specific team only.
+            text: `This is a GameChanger softball box score screenshot. I need stats for the team matching: "${opponentName}".
 
-CRITICAL RULES:
-- GameChanger box scores show ONE team's lineup at a time under a bold team header
-- Extract ONLY the team shown in the bold/highlighted header at the top of the lineup section
-- Do NOT extract the opposing team's stats - they are NOT shown in this section
-- The "game_vs" field is just the name of who they played against (the other team in the score)
-- Batters listed are ONLY players from the primary team shown
+GameChanger shows TWO teams — one on the LEFT panel, one on the RIGHT panel, each with their own bold header.
 
-Clean up truncated names: "D Ferrar...23" → "D Ferrara", "M Kalei...#99" → "M Kaleikini"
+TEAM IDENTIFICATION — CRITICAL:
+- Read BOTH bold section headers (left panel AND right panel)  
+- Extract the section whose header most closely matches: "${opponentName}"
+- The team may appear on either the left OR right side depending on home/away
+- Set "game_vs" to the OTHER team's name (the panel you did NOT extract)
+- If unsure which side matches, pick the closest name match to "${opponentName}"
 
 CRITICAL NAME RULES:
 - If a name is truncated (ends with "..." or cuts off mid-name), use ONLY what is clearly visible
@@ -366,7 +366,7 @@ export default function OpponentScouting({ teamId, opponentName, onClose }) {
       setUploadProgress(`Extracting ${i + 1} of ${files.length}: ${file.name}`)
       try {
         const base64    = await compressImage(file)
-        const extracted = await extractBoxScore(base64)
+        const extracted = await extractBoxScore(base64, opponentName)
         pending.push({
           extracted,
           fileName: file.name,
