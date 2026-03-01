@@ -190,7 +190,7 @@ async function generateScoutingReport(opponentName, boxScores) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
+      max_tokens: 3500,
       messages: [{
         role: 'user',
         content: `Elite softball pitching coach. Generate scouting report for ${opponentName} (${boxScores.length} games).

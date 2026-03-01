@@ -107,7 +107,25 @@ Return ONLY the JSON.`
   const data = await response.json()
   const text = data.content?.find(b => b.type === 'text')?.text || ''
   const clean = text.replace(/```json|```/g, '').trim()
-  return JSON.parse(clean)
+  try {
+    return JSON.parse(clean)
+  } catch(e) {
+    // Response was truncated — attempt to recover by closing open structures
+    let recovered = clean
+    // Count open braces/brackets to close them
+    const opens = (recovered.match(/[{[]/g) || []).length
+    const closes = (recovered.match(/[}\]]/g) || []).length
+    const diff = opens - closes
+    // Trim to last complete object
+    const lastBrace = recovered.lastIndexOf('},')
+    if (lastBrace > recovered.length * 0.5) {
+      recovered = recovered.slice(0, lastBrace + 1)
+      // Close remaining structures
+      recovered += ']}' .repeat(Math.max(0, diff - 1)) + '}'
+      try { return JSON.parse(recovered) } catch(e2) {}
+    }
+    throw new Error(`Report JSON truncated — try regenerating. (${e.message})`)
+  }
 }
 
 // ── Normalize player name — strips birth years and position suffixes ─────────
@@ -222,7 +240,7 @@ async function generateScoutingReport(opponentName, boxScores) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
+      max_tokens: 3500,
       messages: [{
         role: 'user',
         content: `You are an elite softball pitching coach. Generate a pre-game scouting report for ${opponentName} based on ${boxScores.length} games of data.
@@ -288,7 +306,25 @@ Only include players with 2+ AB. Use only names from the data provided.`
   const data = await response.json()
   const text = data.content?.find(b => b.type === 'text')?.text || ''
   const clean = text.replace(/```json|```/g, '').trim()
-  return JSON.parse(clean)
+  try {
+    return JSON.parse(clean)
+  } catch(e) {
+    // Response was truncated — attempt to recover by closing open structures
+    let recovered = clean
+    // Count open braces/brackets to close them
+    const opens = (recovered.match(/[{[]/g) || []).length
+    const closes = (recovered.match(/[}\]]/g) || []).length
+    const diff = opens - closes
+    // Trim to last complete object
+    const lastBrace = recovered.lastIndexOf('},')
+    if (lastBrace > recovered.length * 0.5) {
+      recovered = recovered.slice(0, lastBrace + 1)
+      // Close remaining structures
+      recovered += ']}' .repeat(Math.max(0, diff - 1)) + '}'
+      try { return JSON.parse(recovered) } catch(e2) {}
+    }
+    throw new Error(`Report JSON truncated — try regenerating. (${e.message})`)
+  }
 }
 
 // ── Generate AI scouting report from all box scores ──────────────────────────
