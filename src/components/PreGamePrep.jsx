@@ -63,7 +63,36 @@ Return ONLY the JSON array, no other text.` }
   return JSON.parse(text.replace(/```json|```/g, '').trim())
 }
 
-// ── Extract box score (reusing F-16 pipeline) ─────────────────────────────────
+// ── Fuzzy name match — returns best roster match for an extracted player ───────
+function fuzzyMatchPlayer(extracted, knownRoster) {
+  if (!knownRoster || knownRoster.length === 0) return null
+  const extJersey = (extracted.jersey || '').toString().trim()
+  const extName   = normalizeName(extracted.name || '').toLowerCase()
+  const extLast   = extName.split(' ').pop()
+
+  // Pass 1: jersey + last name both match → high confidence
+  for (const p of knownRoster) {
+    const kJersey = (p.jersey || '').toString().trim()
+    const kLast   = (p.name || '').toLowerCase().split(' ').pop()
+    if (kJersey === extJersey && kLast === extLast) return { player: p, flag: false }
+  }
+
+  // Pass 2: last name matches, jersey differs → likely number change
+  for (const p of knownRoster) {
+    const kLast = (p.name || '').toLowerCase().split(' ').pop()
+    if (kLast === extLast && kLast.length >= 4) return { player: p, flag: true }
+  }
+
+  // Pass 3: jersey matches, name looks different → possible typo/truncation
+  for (const p of knownRoster) {
+    const kJersey = (p.jersey || '').toString().trim()
+    if (kJersey === extJersey && kJersey !== '') return { player: p, flag: true }
+  }
+
+  return null // no match — new player
+}
+
+// ── Extract box score ─────────────────────────────────────────────────────────
 async function extractBoxScore(base64, opponentName) {
   const response = await fetch('/api/claude', {
     method: 'POST',
@@ -75,13 +104,13 @@ async function extractBoxScore(base64, opponentName) {
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
-          { type: 'text', text: `This is a GameChanger softball box score. I need stats for the team matching: "${activeOpponent}".
+          { type: 'text', text: `This is a GameChanger softball box score. I need stats for the team matching: "${opponentName}".
 
 GameChanger shows TWO teams — LEFT panel and RIGHT panel, each with their own bold header.
 
 TEAM IDENTIFICATION — CRITICAL:
 - Read BOTH bold section headers (left panel AND right panel)
-- Extract the section whose header most closely matches: "${activeOpponent}"
+- Extract the section whose header most closely matches: "${opponentName}"
 - The team may appear on either the left OR right side depending on home/away
 - Set "game_vs" to the OTHER team's name (the panel you did NOT extract)
 - If unsure which side, pick the closest name match
@@ -98,8 +127,8 @@ Return ONLY this JSON, no other text:
   "team_name": "exact team name from bold section header",
   "game_vs": "the OTHER team in the score header (not in the lineup)",
   "game_date": "YYYY-MM-DD if visible, empty string if not",
-  "batters": [{"name":"full cleaned name","jersey":"number","position":"SS","ab":0,"r":0,"h":0,"rbi":0,"bb":0,"so":0}],
-  "pitchers": [{"name":"full name","jersey":"number","ip":"0.0","h":0,"r":0,"er":0,"bb":0,"so":0,"result":"W or L or empty"}]
+  "batters": [{"name":"full raw name as shown","jersey":"number only","position":"SS","ab":0,"r":0,"h":0,"rbi":0,"bb":0,"so":0}],
+  "pitchers": [{"name":"full raw name as shown","jersey":"number only","ip":"0.0","h":0,"r":0,"er":0,"bb":0,"so":0,"result":"W or L or empty"}]
 }
 Exclude TEAM totals row. Return ONLY the JSON.` }
         ]
@@ -240,6 +269,10 @@ export default function PreGamePrep({ teamId, onClose }) {
   const [uploadingBoxScore, setUploadingBoxScore] = useState(false)
   const [generatingReport, setGeneratingReport]   = useState(false)
   const [uploadProgress, setUploadProgress]       = useState('')
+  const [pendingExtracted, setPendingExtracted] = useState(null)
+  const [confirmRows, setConfirmRows]           = useState([])
+  const [confirmingRoster, setConfirmingRoster] = useState(false)
+  const [pendingFiles, setPendingFiles]         = useState([])
 
   // UI
   const [activeTab, setActiveTab]       = useState('roster')  // roster | scouting
@@ -362,39 +395,127 @@ export default function PreGamePrep({ teamId, onClose }) {
     } catch(e) { setError(`Save failed: ${e.message}`) }
   }
 
-  // ── Scouting: upload box scores ─────────────────────────────────────────────
+  // ── Scouting: upload box scores — roster confirmation flow ──────────────────
   async function handleBoxScoreUpload(e) {
     const files = Array.from(e.target.files)
     if (!files.length) return
-    setUploadingBoxScore(true)
-    setError(null)
-    let count = 0
-    for (let i = 0; i < files.length; i++) {
-      setUploadProgress(`Processing ${i + 1} of ${files.length}...`)
-      try {
-        const base64    = await compressImage(files[i])
-        const extracted = await extractBoxScore(base64, opponentName)
-        await saveScoutingBoxScore(teamId, activeOpponent, {
-          game_date:     extracted.game_date || null,
-          game_vs:       extracted.game_vs   || null,
-          raw_extracted: extracted,
-          batters:       extracted.batters   || [],
-          pitchers:      extracted.pitchers  || [],
-        })
-        count++
-      } catch(e) { console.error(`Failed: ${files[i].name}`, e) }
-    }
-    setUploadProgress('')
-    setUploadingBoxScore(false)
     if (scoutingFileRef.current) scoutingFileRef.current.value = ''
-    if (count > 0) {
+    await processNextFile(files, 0)
+  }
+
+  async function processNextFile(files, index) {
+    if (index >= files.length) {
       const updated = await getScoutingBoxScores(teamId, activeOpponent)
       setBoxScores(updated)
-      flash(`${count} box score${count > 1 ? 's' : ''} uploaded. Generating intel report...`)
-      await handleGenerateReport(updated)
-    } else {
-      setError('No box scores could be processed. Try clearer screenshots.')
+      setUploadingBoxScore(false)
+      setUploadProgress('')
+      if (updated.length > 0) {
+        flash(`${files.length} box score${files.length > 1 ? 's' : ''} uploaded. Generating intel report...`)
+        await handleGenerateReport(updated)
+      }
+      return
     }
+
+    setUploadingBoxScore(true)
+    setUploadProgress(`Processing ${index + 1} of ${files.length}...`)
+    setError(null)
+
+    try {
+      const base64    = await compressImage(files[index])
+      const extracted = await extractBoxScore(base64, activeOpponent)
+
+      const rows = (extracted.batters || []).map(b => {
+        const extNorm = normalizeName(b.name || '')
+        const match   = fuzzyMatchPlayer({ jersey: b.jersey, name: extNorm }, roster.filter(r => r.name))
+        return {
+          jersey:        b.jersey || '',
+          extractedName: extNorm,
+          confirmedName: match ? match.player.name : '',
+          flag:          match ? match.flag : false,
+          isNew:         !match,
+          stats:         { ab: b.ab, h: b.h, r: b.r, rbi: b.rbi, bb: b.bb, so: b.so },
+          position:      b.position || '',
+        }
+      })
+
+      setPendingExtracted(extracted)
+      setConfirmRows(rows)
+      setConfirmingRoster(true)
+      setPendingFiles({ files, nextIndex: index + 1 })
+
+    } catch(err) {
+      console.error(`Failed: ${files[index].name}`, err)
+      setError(`Could not process file ${index + 1}: ${err.message}`)
+      setUploadingBoxScore(false)
+      setUploadProgress('')
+    }
+  }
+
+  async function handleConfirmRoster() {
+    if (!pendingExtracted) return
+    setConfirmingRoster(false)
+    setError(null)
+
+    try {
+      const confirmedBatters = confirmRows.map(row => ({
+        name:     row.confirmedName || row.extractedName,
+        jersey:   row.jersey,
+        position: row.position,
+        ab: row.stats.ab, h: row.stats.h, r: row.stats.r,
+        rbi: row.stats.rbi, bb: row.stats.bb, so: row.stats.so,
+      }))
+
+      const updatedRoster = [...roster]
+      for (const row of confirmRows) {
+        const confirmedName = row.confirmedName || row.extractedName
+        if (!confirmedName) continue
+        const existing = updatedRoster.find(r =>
+          r.name?.toLowerCase() === confirmedName.toLowerCase()
+        )
+        if (existing) {
+          if (existing.jersey !== row.jersey) existing.jersey = row.jersey
+        } else if (row.isNew && confirmedName) {
+          updatedRoster.push({
+            lineup_order: updatedRoster.length + 1,
+            jersey: row.jersey, name: confirmedName,
+            position: row.position, batter_type: 'R', team_side: 'opponent',
+          })
+        }
+      }
+      setRoster(updatedRoster)
+
+      await clearOpponentLineup(teamId, activeOpponent)
+      for (const p of updatedRoster.filter(r => r.name?.trim())) {
+        await upsertOpponentPlayer({
+          team_id: teamId, opponent_name: activeOpponent,
+          lineup_order: p.lineup_order, jersey: p.jersey,
+          name: p.name.trim(), position: p.position,
+          batter_type: p.batter_type || 'R', team_side: 'opponent',
+        })
+      }
+
+      await saveScoutingBoxScore(teamId, activeOpponent, {
+        game_date:     pendingExtracted.game_date || null,
+        game_vs:       pendingExtracted.game_vs   || null,
+        raw_extracted: pendingExtracted,
+        batters:       confirmedBatters,
+        pitchers:      pendingExtracted.pitchers  || [],
+      })
+
+      setPendingExtracted(null)
+      setConfirmRows([])
+
+      const { files, nextIndex } = pendingFiles
+      await processNextFile(files, nextIndex)
+
+    } catch(err) {
+      setError(`Save failed: ${err.message}`)
+      setUploadingBoxScore(false)
+    }
+  }
+
+  function updateConfirmRow(i, value) {
+    setConfirmRows(prev => prev.map((r, idx) => idx === i ? { ...r, confirmedName: value } : r))
   }
 
   async function handleGenerateReport(scores) {
@@ -726,6 +847,72 @@ export default function PreGamePrep({ teamId, onClose }) {
                       </div>
                     )}
                   </div>
+
+                  {/* ── Roster Confirmation Modal ── */}
+                  {confirmingRoster && (
+                    <div style={{
+                      background:'rgba(0,0,0,0.92)', border:`1px solid rgba(245,166,35,0.4)`,
+                      borderRadius:10, padding:16, display:'flex', flexDirection:'column', gap:12,
+                    }}>
+                      <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:gold, letterSpacing:2 }}>
+                        ✅ CONFIRM PLAYER ROSTER — {pendingExtracted?.game_vs || 'UNKNOWN OPPONENT'}
+                      </div>
+                      <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:11, color:dim, lineHeight:1.5 }}>
+                        Review extracted names. Edit any that are wrong. ⚠️ = possible jersey change or name mismatch.
+                      </div>
+
+                      {/* Column headers */}
+                      <div style={{ display:'grid', gridTemplateColumns:'40px 1fr 1fr', gap:8, padding:'0 2px' }}>
+                        {['#','EXTRACTED','CONFIRM AS'].map(h => (
+                          <div key={h} style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:7, color:dim, letterSpacing:1 }}>{h}</div>
+                        ))}
+                      </div>
+
+                      {confirmRows.map((row, i) => (
+                        <div key={i} style={{
+                          display:'grid', gridTemplateColumns:'40px 1fr 1fr', gap:8, alignItems:'center',
+                          background: row.flag ? 'rgba(245,166,35,0.06)' : row.isNew ? 'rgba(0,212,255,0.04)' : 'transparent',
+                          borderRadius:4, padding:'4px 2px',
+                        }}>
+                          <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:11, color:gold, fontWeight:700 }}>
+                            #{row.jersey}
+                          </div>
+                          <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:12, color:dim }}>
+                            {row.flag ? '⚠️ ' : row.isNew ? '🆕 ' : ''}{row.extractedName || '—'}
+                          </div>
+                          <input
+                            value={row.confirmedName}
+                            onChange={e => updateConfirmRow(i, e.target.value)}
+                            placeholder={row.isNew ? 'Type player name' : row.extractedName}
+                            style={{
+                              background:'rgba(255,255,255,0.06)',
+                              border:`1px solid ${row.flag ? 'rgba(245,166,35,0.5)' : row.isNew ? 'rgba(0,212,255,0.4)' : 'var(--border)'}`,
+                              borderRadius:4, color:'var(--text-primary)',
+                              padding:'5px 8px', fontSize:12, width:'100%',
+                              fontFamily:"'DM Sans',sans-serif", outline:'none',
+                            }}
+                          />
+                        </div>
+                      ))}
+
+                      <div style={{ display:'flex', gap:8, marginTop:4 }}>
+                        <button
+                          onClick={() => { setConfirmingRoster(false); setUploadingBoxScore(false); setPendingExtracted(null); setConfirmRows([]) }}
+                          style={{
+                            padding:'9px 16px', borderRadius:6, cursor:'pointer',
+                            background:'transparent', border:`1px solid ${border}`,
+                            color:dim, fontFamily:"'Share Tech Mono',monospace", fontSize:9,
+                          }}>✕ CANCEL</button>
+                        <button
+                          onClick={handleConfirmRoster}
+                          style={{
+                            flex:1, padding:'9px', borderRadius:6, cursor:'pointer',
+                            background:'rgba(0,229,160,0.12)', border:'1px solid rgba(0,229,160,0.5)',
+                            color:green, fontFamily:"'Share Tech Mono',monospace", fontSize:10, letterSpacing:1,
+                          }}>✓ CONFIRM ROSTER &amp; SAVE STATS</button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Generating state */}
                   {generatingReport && (
