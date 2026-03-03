@@ -47,10 +47,12 @@ async function ocrLineup(base64) {
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
           { type: 'text', text: `Extract the softball lineup from this image. Return ONLY a JSON array:
 [{"order":1,"jersey":"12","name":"Player Name","position":"SS","batter_type":"R"}]
-- order: batting order 1-9 (or 1-10 for DH)
-- jersey: number as string
-- name: full name, clean up truncation
-- position: P, C, 1B, 2B, 3B, SS, LF, CF, RF, DP, FLEX, etc
+
+CRITICAL — GameChanger player rows look like: "Carter Grigg 2032 #8 (SS)"
+- jersey: the number that comes AFTER the # symbol. Example: "Carter Grigg 2032 #8 (SS)" → jersey is "8". NEVER use a 4-digit birth year as jersey.
+- name: ONLY the text BEFORE the # symbol, stripped of any 4-digit year. Example: "Carter Grigg 2032 #8 (SS)" → name is "Carter Grigg"
+- order: batting order position 1-9 (or 1-10 for DH)
+- position: P, C, 1B, 2B, 3B, SS, LF, CF, RF, DP, FLEX — use the position shown in parentheses if visible
 - batter_type: R, L, or S (switch) — guess R if unknown
 Return ONLY the JSON array, no other text.` }
         ]
@@ -340,15 +342,19 @@ export default function PreGamePrep({ teamId, onClose }) {
     try {
       const base64  = await compressImage(file)
       const players = await ocrLineup(base64)
-      const mapped  = players.map((p, i) => ({
-        lineup_order: p.order || i + 1,
-        jersey:       p.jersey || '',
-        name:         p.name   || '',
-        position:     p.position || '',
-        batter_type:  p.batter_type || 'R',
-        team_side:    'opponent',
-        isNew:        true,
-      }))
+      const mapped  = players.map((p, i) => {
+        // Run through same normalization as box score extraction
+        const rawName = p.name || ''
+        return {
+          lineup_order: p.order || i + 1,
+          jersey:       extractJersey(rawName, p.jersey),
+          name:         normalizeName(rawName) || rawName,
+          position:     p.position || '',
+          batter_type:  p.batter_type || 'R',
+          team_side:    'opponent',
+          isNew:        true,
+        }
+      })
       setRoster(mapped)
       flash('Lineup scanned! Review names then save.')
     } catch(e) {
