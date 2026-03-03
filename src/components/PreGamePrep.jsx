@@ -400,6 +400,7 @@ export default function PreGamePrep({ teamId, onClose }) {
     const files = Array.from(e.target.files)
     if (!files.length) return
     if (scoutingFileRef.current) scoutingFileRef.current.value = ''
+    setActiveTab('scouting')
     await processNextFile(files, 0)
   }
 
@@ -549,7 +550,7 @@ export default function PreGamePrep({ teamId, onClose }) {
       <div style={{
         background:'#0a1628', border:`1px solid ${border}`, borderRadius:12,
         width:'100%', maxWidth:640, maxHeight:'92vh', overflowY:'auto',
-        display:'flex', flexDirection:'column',
+        display:'flex', flexDirection:'column', position:'relative',
       }}>
 
         {/* ── Header ── */}
@@ -979,6 +980,77 @@ export default function PreGamePrep({ teamId, onClose }) {
           )}
         </div>
       </div>
+
+      {/* ── Roster Confirmation Overlay — renders regardless of active tab ── */}
+      {confirmingRoster && (
+        <div style={{
+          position:'absolute', inset:0, background:'rgba(10,22,40,0.97)',
+          borderRadius:12, zIndex:20, overflowY:'auto',
+          display:'flex', flexDirection:'column', padding:20, gap:14,
+        }}>
+          <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:gold, letterSpacing:2 }}>
+            ✅ CONFIRM PLAYER ROSTER
+          </div>
+          <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:'var(--cyan)', letterSpacing:1 }}>
+            vs {pendingExtracted?.game_vs || 'UNKNOWN OPPONENT'}
+          </div>
+          <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:12, color:'var(--text-dim)', lineHeight:1.5 }}>
+            Review extracted names against known roster. Edit any that are wrong before saving.
+            ⚠️ = jersey change or name mismatch detected. 🆕 = new player.
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'48px 1fr 1fr', gap:8, padding:'0 2px' }}>
+            {['#','EXTRACTED NAME','CONFIRM AS'].map(h => (
+              <div key={h} style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:7, color:'var(--text-dim)', letterSpacing:1 }}>{h}</div>
+            ))}
+          </div>
+
+          {confirmRows.map((row, i) => (
+            <div key={i} style={{
+              display:'grid', gridTemplateColumns:'48px 1fr 1fr', gap:8, alignItems:'center',
+              background: row.flag ? 'rgba(245,166,35,0.07)' : row.isNew ? 'rgba(0,212,255,0.05)' : 'rgba(255,255,255,0.02)',
+              border: `1px solid ${row.flag ? 'rgba(245,166,35,0.2)' : row.isNew ? 'rgba(0,212,255,0.15)' : 'var(--border)'}`,
+              borderRadius:6, padding:'7px 10px',
+            }}>
+              <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:12, color:gold, fontWeight:700 }}>
+                #{row.jersey}
+              </div>
+              <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:12, color:'var(--text-dim)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {row.flag ? '⚠️ ' : row.isNew ? '🆕 ' : '✓ '}{row.extractedName || '—'}
+              </div>
+              <input
+                value={row.confirmedName}
+                onChange={e => updateConfirmRow(i, e.target.value)}
+                placeholder={row.isNew ? 'Type correct name' : row.extractedName}
+                style={{
+                  background: 'rgba(255,255,255,0.06)',
+                  border: `1px solid ${row.flag ? 'rgba(245,166,35,0.5)' : row.isNew ? 'rgba(0,212,255,0.4)' : 'rgba(0,229,160,0.3)'}`,
+                  borderRadius:4, color:'var(--text-primary)',
+                  padding:'6px 8px', fontSize:13, width:'100%',
+                  fontFamily:"'DM Sans',sans-serif", outline:'none',
+                }}
+              />
+            </div>
+          ))}
+
+          <div style={{ display:'flex', gap:8, marginTop:8, position:'sticky', bottom:0, background:'rgba(10,22,40,0.97)', paddingTop:8 }}>
+            <button
+              onClick={() => { setConfirmingRoster(false); setUploadingBoxScore(false); setPendingExtracted(null); setConfirmRows([]) }}
+              style={{
+                padding:'10px 18px', borderRadius:6, cursor:'pointer',
+                background:'transparent', border:'1px solid var(--border)',
+                color:'var(--text-dim)', fontFamily:"'Share Tech Mono',monospace", fontSize:9,
+              }}>✕ CANCEL</button>
+            <button
+              onClick={handleConfirmRoster}
+              style={{
+                flex:1, padding:'10px', borderRadius:6, cursor:'pointer',
+                background:'rgba(0,229,160,0.12)', border:'1px solid rgba(0,229,160,0.5)',
+                color:'var(--green)', fontFamily:"'Share Tech Mono',monospace", fontSize:10, letterSpacing:1,
+              }}>✓ CONFIRM ROSTER + SAVE STATS</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
