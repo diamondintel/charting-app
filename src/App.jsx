@@ -631,11 +631,25 @@ export default function App() {
 
   // ── Auth state listener ──────────────────────────────────────────────────────
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user ?? null))
+    // Check URL hash for recovery token on fresh page load (mobile magic link tap)
+    const hash = window.location.hash
+    if (hash && hash.includes('type=recovery')) {
+      setNeedsPasswordReset(true)
+    }
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      // Don't overwrite needsPasswordReset=true if we detected it from URL hash
+      setAuthUser(user ?? null)
+    })
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, authSession) => {
       if (event === 'PASSWORD_RECOVERY') {
         // User clicked reset link — show password reset screen
         setNeedsPasswordReset(true)
+        setAuthUser(authSession?.user ?? null)
+      } else if (event === 'USER_UPDATED') {
+        // Password was successfully updated — clear recovery state
+        setNeedsPasswordReset(false)
         setAuthUser(authSession?.user ?? null)
       } else {
         setNeedsPasswordReset(false)
