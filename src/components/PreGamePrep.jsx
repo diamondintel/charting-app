@@ -142,19 +142,25 @@ Exclude TEAM totals row. Return ONLY the JSON.` }
 }
 
 // ── Normalize player name — strips birth years and position suffixes ─────────
+// GameChanger format: "Firstname Lastname YYYY #Jersey (Position)"
+// Name = everything BEFORE the first #, stripped of birth year
+// Jersey = digits immediately after #
 function normalizeName(raw) {
   if (!raw) return ''
-  return raw
-    .replace(/\s*\d{4}\s*/g, ' ')
-    .replace(/\s*#\d+\s*/g, ' ')
-    .replace(/\s*\([^)]+\)\s*/g, ' ')
+  // Take only the part before the first # — that contains name + possibly birth year
+  const beforeHash = raw.split('#')[0]
+  return beforeHash
+    .replace(/\s*(19|20)\d{2}\s*/g, ' ')  // strip 4-digit years (birth years)
     .replace(/\s+/g, ' ')
     .trim()
 }
 function extractJersey(raw, fallback) {
-  if (fallback && fallback !== '0' && fallback !== '') return fallback
-  const match = (raw || '').match(/#(\d+)/)
-  return match ? match[1] : ''
+  // Always prefer extracting from the raw name string after # 
+  const fromName = (raw || '').match(/#(\d+)/)
+  if (fromName) return fromName[1]
+  // Fall back to the jersey field only if it looks like a real jersey (1-3 digits)
+  if (fallback && /^\d{1,3}$/.test(fallback)) return fallback
+  return ''
 }
 
 // ── Generate scouting report ──────────────────────────────────────────────────
@@ -426,10 +432,12 @@ export default function PreGamePrep({ teamId, onClose }) {
       const extracted = await extractBoxScore(base64, activeOpponent)
 
       const rows = (extracted.batters || []).map(b => {
-        const extNorm = normalizeName(b.name || '')
-        const match   = fuzzyMatchPlayer({ jersey: b.jersey, name: extNorm }, roster.filter(r => r.name))
+        const rawName  = b.name || ''
+        const extNorm  = normalizeName(rawName)           // name before # stripped of birth year
+        const jersey   = extractJersey(rawName, b.jersey) // # always wins over b.jersey field
+        const match    = fuzzyMatchPlayer({ jersey, name: extNorm }, roster.filter(r => r.name))
         return {
-          jersey:        b.jersey || '',
+          jersey,
           extractedName: extNorm,
           confirmedName: match ? match.player.name : '',
           flag:          match ? match.flag : false,
