@@ -248,11 +248,19 @@ export async function deletePlayer(playerId) {
   if (error) throw error
 }
 
+// ─── FIXED: upsertOpponentPlayer ─────────────────────────────────────────────
+// Previously used `...player` spread which passed invalid field types/unknown
+// columns, causing Supabase to silently reject the insert with no thrown error.
+// Now uses an explicit column list with safe defaults for every field.
+
 export async function upsertOpponentPlayer(teamId, opponentName, player) {
-  if (!player || !player.name) { console.error('upsertOpponentPlayer: invalid player', {teamId, opponentName, player}); throw new Error('Invalid player data: ' + JSON.stringify(player)) }
+  if (!player || !player.name) {
+    console.error('upsertOpponentPlayer: invalid player', { teamId, opponentName, player })
+    throw new Error('Invalid player data: ' + JSON.stringify(player))
+  }
   const cleanName = player.name.trim()
 
-  // Delete existing record for this player first (avoids constraint issues)
+  // Delete any existing record for this player first (avoids constraint conflicts)
   await supabase
     .from('players')
     .delete()
@@ -261,18 +269,29 @@ export async function upsertOpponentPlayer(teamId, opponentName, player) {
     .eq('opponent_name', opponentName)
     .eq('name', cleanName)
 
-  // Fresh insert
+  // Fresh insert — explicit columns only, no spread
   const { data, error } = await supabase
     .from('players')
     .insert({
-      ...player,
-      name: cleanName,
-      team_id: teamId,
-      team_side: 'opponent',
-      opponent_name: opponentName,
+      team_id:         teamId,
+      team_side:       'opponent',
+      opponent_name:   opponentName,
+      name:            cleanName,
+      jersey:          player.jersey    || '',
+      position:        player.position  || '',
+      lineup_order:    player.lineup_order != null ? player.lineup_order : 1,
+      batter_type:     'unknown',
+      is_pitcher:      false,
+      pitcher_arsenal: [],
+      pitch_speeds:    {},
     })
-    .select().single()
-  if (error) throw error
+    .select()
+    .single()
+
+  if (error) {
+    console.error('upsertOpponentPlayer INSERT failed:', error.message, { teamId, opponentName, cleanName })
+    throw error
+  }
   return data
 }
 
@@ -519,4 +538,3 @@ export async function getOpponentsWithScouting(teamId) {
   if (error) throw error
   return data || []
 }
-
