@@ -249,6 +249,7 @@ export async function deletePlayer(playerId) {
 }
 
 export async function upsertOpponentPlayer(teamId, opponentName, player) {
+  if (!player || !player.name) { console.error('upsertOpponentPlayer: invalid player', {teamId, opponentName, player}); throw new Error('Invalid player data: ' + JSON.stringify(player)) }
   const cleanName = player.name.trim()
 
   // Delete existing record for this player first (avoids constraint issues)
@@ -518,3 +519,4 @@ export async function getOpponentsWithScouting(teamId) {
   if (error) throw error
   return data || []
 }
+
