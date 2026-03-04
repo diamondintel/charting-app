@@ -152,7 +152,8 @@ function normalizeName(raw) {
   // Take only the part before the first # — that contains name + possibly birth year
   const beforeHash = raw.split('#')[0]
   return beforeHash
-    .replace(/\s*(19|20)\d{2}\s*/g, ' ')  // strip 4-digit years (birth years)
+    .replace(/(19|20)\d{2}/g, ' ')  // strip birth years
+    .replace(/\s*\([^)]+\)\s*/g, ' ')     // strip (SS) etc
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -437,11 +438,15 @@ export default function PreGamePrep({ teamId, onClose }) {
       const base64    = await compressImage(files[index])
       const extracted = await extractBoxScore(base64, activeOpponent)
 
+      // Always fetch roster fresh from DB — don't rely on state which may be stale
+      const freshRoster = await getOpponentLineup(teamId, activeOpponent).catch(() => [])
+      const knownPlayers = freshRoster.filter(r => r.name?.trim())
+
       const rows = (extracted.batters || []).map(b => {
         const rawName  = b.name || ''
-        const extNorm  = normalizeName(rawName)           // name before # stripped of birth year
-        const jersey   = extractJersey(rawName, b.jersey) // # always wins over b.jersey field
-        const match    = fuzzyMatchPlayer({ jersey, name: extNorm }, roster.filter(r => r.name))
+        const extNorm  = normalizeName(rawName)
+        const jersey   = extractJersey(rawName, b.jersey)
+        const match    = fuzzyMatchPlayer({ jersey, name: extNorm }, knownPlayers)
         return {
           jersey,
           extractedName: extNorm,
