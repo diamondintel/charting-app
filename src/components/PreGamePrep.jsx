@@ -384,28 +384,35 @@ export default function PreGamePrep({ teamId, onClose }) {
 
   // ── Roster: save ───────────────────────────────────────────────────────────
   async function handleSaveRoster() {
-    const filled = roster.filter(r => r.name?.trim())
+    // Strictly filter — must be a real object with a non-empty name string
+    const filled = (roster || []).filter(r => r && typeof r === 'object' && typeof r.name === 'string' && r.name.trim())
     if (!filled.length) { setError('Add at least one player name before saving.'); return }
     setError(null)
     try {
       await clearOpponentLineup(teamId, activeOpponent)
-      for (const p of filled) {
+      for (let i = 0; i < filled.length; i++) {
+        const p = filled[i]
+        if (!p || !p.name) { console.warn('Skipping undefined player at index', i); continue }
         await upsertOpponentPlayer({
-          team_id:      teamId,
+          team_id:       teamId,
           opponent_name: activeOpponent,
-          lineup_order: p.lineup_order,
-          jersey:       p.jersey,
-          name:         p.name.trim(),
-          position:     p.position,
-          batter_type:  p.batter_type || 'R',
-          team_side:    'opponent',
+          lineup_order:  p.lineup_order || i + 1,
+          jersey:        p.jersey || '',
+          name:          p.name.trim(),
+          position:      p.position || '',
+          batter_type:   p.batter_type || 'R',
+          team_side:     'opponent',
         })
       }
       setRosterSaved(true)
       setTimeout(() => setRosterSaved(false), 3000)
       getSavedOpponentTeams(teamId).then(setSavedOpponents).catch(console.error)
       flash(`✓ Roster saved for ${activeOpponent}`)
-    } catch(e) { setError(`Save failed: ${e.message}`) }
+    } catch(e) {
+      console.error('handleSaveRoster error:', e)
+      console.error('roster state:', JSON.stringify(roster))
+      setError(`Save failed: ${e.message}`)
+    }
   }
 
   // ── Scouting: upload box scores — roster confirmation flow ──────────────────
@@ -477,10 +484,14 @@ export default function PreGamePrep({ teamId, onClose }) {
     setError(null)
 
     try {
+      // Build confirmed batters for box score — only rows with a name
       const confirmedBatters = confirmRows
-        .filter(row => (row.confirmedName || row.extractedName)?.trim())
+        .filter(row => {
+          const n = (row.confirmedName || row.extractedName || '').trim()
+          return n.length > 0
+        })
         .map(row => ({
-          name:     (row.confirmedName || row.extractedName || '').trim(),
+          name:     (row.confirmedName || row.extractedName).trim(),
           jersey:   row.jersey || '',
           position: row.position || '',
           ab:  Number(row.stats?.ab)  || 0,
@@ -491,48 +502,51 @@ export default function PreGamePrep({ teamId, onClose }) {
           so:  Number(row.stats?.so)  || 0,
         }))
 
-      const updatedRoster = [...roster]
+      // Build fresh roster purely from confirmed rows — don't merge with state
+      // This avoids any stale/undefined entries from placeholder rows
+      const freshRosterFromDB = await getOpponentLineup(teamId, activeOpponent).catch(() => [])
+      const rosterMap = {}
+      for (const p of freshRosterFromDB) {
+        if (p?.name?.trim()) rosterMap[p.name.toLowerCase()] = { ...p }
+      }
+
+      // Apply confirmed rows — update jersey if changed, add if new
+      let order = Object.keys(rosterMap).length
       for (const row of confirmRows) {
-        const confirmedName = row.confirmedName || row.extractedName
+        const confirmedName = (row.confirmedName || row.extractedName || '').trim()
         if (!confirmedName) continue
-        const existing = updatedRoster.find(r =>
-          r.name?.toLowerCase() === confirmedName.toLowerCase()
-        )
-        if (existing) {
-          if (existing.jersey !== row.jersey) existing.jersey = row.jersey
-        } else if (row.isNew && confirmedName) {
-          updatedRoster.push({
-            lineup_order: updatedRoster.length + 1,
-            jersey: row.jersey, name: confirmedName,
-            position: row.position, batter_type: 'R', team_side: 'opponent',
-          })
+        const key = confirmedName.toLowerCase()
+        if (rosterMap[key]) {
+          rosterMap[key].jersey = row.jersey || rosterMap[key].jersey
+        } else {
+          order++
+          rosterMap[key] = {
+            lineup_order: order, jersey: row.jersey || '',
+            name: confirmedName, position: row.position || '',
+            batter_type: 'R', team_side: 'opponent',
+          }
         }
       }
-      setRoster(updatedRoster)
 
-      // Upsert first, THEN clear — keeps opponent visible if anything fails
-      const validPlayers = updatedRoster.filter(r => r?.name && r.name.trim())
-      for (const p of validPlayers) {
+      const finalRoster = Object.values(rosterMap)
+      setRoster(finalRoster)
+
+      // Save to DB — clear then upsert
+      await clearOpponentLineup(teamId, activeOpponent)
+      for (const p of finalRoster) {
         await upsertOpponentPlayer({
-          team_id: teamId, opponent_name: activeOpponent,
-          lineup_order: p.lineup_order || 1, jersey: p.jersey || '',
-          name: p.name.trim(), position: p.position || '',
-          batter_type: p.batter_type || 'R', team_side: 'opponent',
+          team_id:      teamId,
+          opponent_name: activeOpponent,
+          lineup_order:  p.lineup_order || 1,
+          jersey:        p.jersey || '',
+          name:          p.name.trim(),
+          position:      p.position || '',
+          batter_type:   p.batter_type || 'R',
+          team_side:     'opponent',
         })
       }
-      // Only clear old records after new ones are saved
-      if (validPlayers.length > 0) {
-        await clearOpponentLineup(teamId, activeOpponent)
-        for (const p of validPlayers) {
-          await upsertOpponentPlayer({
-            team_id: teamId, opponent_name: activeOpponent,
-            lineup_order: p.lineup_order || 1, jersey: p.jersey || '',
-            name: p.name.trim(), position: p.position || '',
-            batter_type: p.batter_type || 'R', team_side: 'opponent',
-          })
-        }
-      }
 
+      // Save box score with confirmed names
       await saveScoutingBoxScore(teamId, activeOpponent, {
         game_date:     pendingExtracted.game_date || null,
         game_vs:       pendingExtracted.game_vs   || null,
@@ -548,7 +562,10 @@ export default function PreGamePrep({ teamId, onClose }) {
       await processNextFile(files, nextIndex)
 
     } catch(err) {
-      setError(`Save failed: ${err.message}`)
+      console.error('handleConfirmRoster crash:', err)
+      console.error('Stack:', err.stack)
+      setError(`Save failed: ${err.message} | Check console for details`)
+      setConfirmingRoster(true)
       setUploadingBoxScore(false)
     }
   }
