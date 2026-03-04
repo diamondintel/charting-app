@@ -407,9 +407,10 @@ export default function PreGamePrep({ teamId, onClose }) {
       getSavedOpponentTeams(teamId).then(setSavedOpponents).catch(console.error)
       flash(`✓ Roster saved for ${activeOpponent}`)
     } catch(e) {
-      console.error('handleSaveRoster error:', e)
-      console.error('roster state:', JSON.stringify(roster))
-      setError(`Save failed: ${e.message}`)
+      console.error('handleSaveRoster error:', e.message)
+      console.error('handleSaveRoster stack:', e.stack)
+      console.error('roster state was:', JSON.stringify(roster))
+      setError(`Save failed: ${e.message} — see console`)
     }
   }
 
