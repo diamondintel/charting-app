@@ -307,7 +307,7 @@ export default function PreGamePrep({ teamId, onClose }) {
         getScoutingBoxScores(teamId, name),
         getScoutingReport(teamId, name),
       ])
-      setRoster(players.length > 0 ? players : buildEmptyRoster())
+      setRoster(players.length > 0 ? players.filter(p => p && typeof p === 'object') : buildEmptyRoster())
       setBoxScores(scores)
       setReport(rep?.report || null)
     } catch(e) { setError(e.message) }
@@ -452,7 +452,7 @@ export default function PreGamePrep({ teamId, onClose }) {
 
       // Always fetch roster fresh from DB — don't rely on state which may be stale
       const freshRoster = await getOpponentLineup(teamId, activeOpponent).catch(() => [])
-      const knownPlayers = freshRoster.filter(r => r.name?.trim())
+      const knownPlayers = (freshRoster || []).filter(r => r?.name?.trim())
 
       const rows = (extracted.batters || []).map(b => {
         const rawName  = b.name || ''
@@ -738,7 +738,7 @@ export default function PreGamePrep({ teamId, onClose }) {
                     color: activeTab === tab ? cyan : dim,
                     fontFamily:"'Share Tech Mono',monospace", fontSize:9, letterSpacing:1,
                   }}>
-                    {tab === 'roster'   ? `👥 ROSTER${roster.filter(r=>r.name).length > 0 ? ' ✓' : ''}` : ''}
+                    {tab === 'roster'   ? `👥 ROSTER${(roster || []).filter(r=>r?.name?.trim?.()).length > 0 ? ' ✓' : ''}` : ''}
                     {tab === 'scouting' ? `🛩️ F-16 INTEL${boxScores.length > 0 ? ` (${boxScores.length})` : ''}` : ''}
                   </button>
                 ))}
