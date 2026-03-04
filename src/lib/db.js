@@ -269,8 +269,8 @@ export async function upsertOpponentPlayer(teamId, opponentName, player) {
     .eq('opponent_name', opponentName)
     .eq('name', cleanName)
 
-  // Fresh insert — explicit columns only, no spread
-  const { data, error } = await supabase
+  // Fresh insert — explicit columns only, no spread, no .select() (avoids RLS 406 on return)
+  const { error } = await supabase
     .from('players')
     .insert({
       team_id:         teamId,
@@ -285,14 +285,12 @@ export async function upsertOpponentPlayer(teamId, opponentName, player) {
       pitcher_arsenal: [],
       pitch_speeds:    {},
     })
-    .select()
-    .single()
 
   if (error) {
     console.error('upsertOpponentPlayer INSERT failed:', error.message, { teamId, opponentName, cleanName })
     throw error
   }
-  return data
+  return { name: cleanName, team_id: teamId, opponent_name: opponentName }
 }
 
 export async function clearOpponentLineup(teamId, opponentName) {

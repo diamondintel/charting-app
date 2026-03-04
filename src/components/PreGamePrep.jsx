@@ -385,18 +385,24 @@ export default function PreGamePrep({ teamId, onClose }) {
   // ── Roster: save ───────────────────────────────────────────────────────────
   async function handleSaveRoster() {
     // Strictly filter — must be a real object with a non-empty name string
-    const filled = (roster || []).filter(r => r && typeof r === 'object' && typeof r.name === 'string' && r.name.trim())
+    const filled = (roster || []).filter(r =>
+      r != null &&
+      typeof r === 'object' &&
+      r.name != null &&
+      String(r.name).trim().length > 0
+    )
     if (!filled.length) { setError('Add at least one player name before saving.'); return }
     setError(null)
     try {
       await clearOpponentLineup(teamId, activeOpponent)
       for (let i = 0; i < filled.length; i++) {
         const p = filled[i]
-        if (!p || !p.name) { console.warn('Skipping undefined player at index', i); continue }
+        const safeName = String(p.name).trim()
+        if (!safeName) { console.warn('Skipping blank player at index', i); continue }
         await upsertOpponentPlayer(teamId, activeOpponent, {
           lineup_order:  p.lineup_order || i + 1,
           jersey:        p.jersey || '',
-          name:          p.name.trim(),
+          name:          safeName,
           position:      p.position || '',
           batter_type:   p.batter_type || 'R',
           team_side:     'opponent',
