@@ -527,7 +527,9 @@ export default function PreGamePrep({ teamId, onClose }) {
         }
       }
 
+      // Guard: only keep entries with a valid non-empty name
       const finalRoster = Object.values(rosterMap)
+        .filter(p => p && typeof p.name === 'string' && p.name.trim().length > 0)
       setRoster(finalRoster)
 
       // Save to DB — clear then upsert
