@@ -393,9 +393,7 @@ export default function PreGamePrep({ teamId, onClose }) {
       for (let i = 0; i < filled.length; i++) {
         const p = filled[i]
         if (!p || !p.name) { console.warn('Skipping undefined player at index', i); continue }
-        await upsertOpponentPlayer({
-          team_id:       teamId,
-          opponent_name: activeOpponent,
+        await upsertOpponentPlayer(teamId, activeOpponent, {
           lineup_order:  p.lineup_order || i + 1,
           jersey:        p.jersey || '',
           name:          p.name.trim(),
@@ -534,9 +532,7 @@ export default function PreGamePrep({ teamId, onClose }) {
       // Save to DB — clear then upsert
       await clearOpponentLineup(teamId, activeOpponent)
       for (const p of finalRoster) {
-        await upsertOpponentPlayer({
-          team_id:      teamId,
-          opponent_name: activeOpponent,
+        await upsertOpponentPlayer(teamId, activeOpponent, {
           lineup_order:  p.lineup_order || 1,
           jersey:        p.jersey || '',
           name:          p.name.trim(),
