@@ -510,7 +510,7 @@ export default function PreGamePrep({ teamId, onClose }) {
       }
       setRoster(updatedRoster)
 
-      await clearOpponentLineup(teamId, activeOpponent)
+      // Upsert first, THEN clear — keeps opponent visible if anything fails
       const validPlayers = updatedRoster.filter(r => r?.name && r.name.trim())
       for (const p of validPlayers) {
         await upsertOpponentPlayer({
@@ -519,6 +519,18 @@ export default function PreGamePrep({ teamId, onClose }) {
           name: p.name.trim(), position: p.position || '',
           batter_type: p.batter_type || 'R', team_side: 'opponent',
         })
+      }
+      // Only clear old records after new ones are saved
+      if (validPlayers.length > 0) {
+        await clearOpponentLineup(teamId, activeOpponent)
+        for (const p of validPlayers) {
+          await upsertOpponentPlayer({
+            team_id: teamId, opponent_name: activeOpponent,
+            lineup_order: p.lineup_order || 1, jersey: p.jersey || '',
+            name: p.name.trim(), position: p.position || '',
+            batter_type: p.batter_type || 'R', team_side: 'opponent',
+          })
+        }
       }
 
       await saveScoutingBoxScore(teamId, activeOpponent, {
