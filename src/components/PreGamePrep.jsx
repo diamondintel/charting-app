@@ -477,13 +477,19 @@ export default function PreGamePrep({ teamId, onClose }) {
     setError(null)
 
     try {
-      const confirmedBatters = confirmRows.map(row => ({
-        name:     row.confirmedName || row.extractedName,
-        jersey:   row.jersey,
-        position: row.position,
-        ab: row.stats.ab, h: row.stats.h, r: row.stats.r,
-        rbi: row.stats.rbi, bb: row.stats.bb, so: row.stats.so,
-      }))
+      const confirmedBatters = confirmRows
+        .filter(row => (row.confirmedName || row.extractedName)?.trim())
+        .map(row => ({
+          name:     (row.confirmedName || row.extractedName || '').trim(),
+          jersey:   row.jersey || '',
+          position: row.position || '',
+          ab:  Number(row.stats?.ab)  || 0,
+          h:   Number(row.stats?.h)   || 0,
+          r:   Number(row.stats?.r)   || 0,
+          rbi: Number(row.stats?.rbi) || 0,
+          bb:  Number(row.stats?.bb)  || 0,
+          so:  Number(row.stats?.so)  || 0,
+        }))
 
       const updatedRoster = [...roster]
       for (const row of confirmRows) {
@@ -505,11 +511,12 @@ export default function PreGamePrep({ teamId, onClose }) {
       setRoster(updatedRoster)
 
       await clearOpponentLineup(teamId, activeOpponent)
-      for (const p of updatedRoster.filter(r => r.name?.trim())) {
+      const validPlayers = updatedRoster.filter(r => r?.name && r.name.trim())
+      for (const p of validPlayers) {
         await upsertOpponentPlayer({
           team_id: teamId, opponent_name: activeOpponent,
-          lineup_order: p.lineup_order, jersey: p.jersey,
-          name: p.name.trim(), position: p.position,
+          lineup_order: p.lineup_order || 1, jersey: p.jersey || '',
+          name: p.name.trim(), position: p.position || '',
           batter_type: p.batter_type || 'R', team_side: 'opponent',
         })
       }
