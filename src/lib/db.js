@@ -546,3 +546,4 @@ export async function getOpponentsWithScouting(teamId) {
   if (error) throw error
   return data || []
 }
+
