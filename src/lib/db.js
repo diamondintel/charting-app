@@ -303,6 +303,16 @@ export async function clearOpponentLineup(teamId, opponentName) {
   if (error) throw error
 }
 
+export async function updateOpponentPlayerScouting(teamId, opponentName, playerName, updates) {
+  const { error } = await supabase
+    .from('players')
+    .update(updates)
+    .eq('team_id', teamId)
+    .eq('opponent_name', opponentName)
+    .ilike('name', playerName.trim())
+  if (error) console.error('updateOpponentPlayerScouting error:', error.message)
+}
+
 export async function getPlayersForTeam(teamId) {
   const { data, error } = await supabase
     .from('players')
