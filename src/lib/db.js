@@ -259,8 +259,37 @@ export async function upsertOpponentPlayer(teamId, opponentName, player) {
     throw new Error('Invalid player data: ' + JSON.stringify(player))
   }
   const cleanName = player.name.trim()
+  const jersey    = player.jersey || ''
 
-  // Delete any existing record for this player first (avoids constraint conflicts)
+  // 008: Jersey-based dedup — if a player with this jersey already exists,
+  // update their name/position rather than creating a duplicate row.
+  // This handles OCR name variations across multiple uploads of the same player.
+  if (jersey) {
+    const { data: existing } = await supabase
+      .from('players')
+      .select('player_id, name, batter_type, batter_tendency')
+      .eq('team_id', teamId)
+      .eq('team_side', 'opponent')
+      .eq('opponent_name', opponentName)
+      .eq('jersey', jersey)
+      .maybeSingle()
+
+    if (existing) {
+      // Player with this jersey already exists — update name/position only,
+      // preserve any scouting data (batter_type, batter_tendency) already set
+      const { error } = await supabase
+        .from('players')
+        .update({
+          name:     cleanName,
+          position: player.position || '',
+        })
+        .eq('player_id', existing.player_id)
+      if (error) console.error('upsertOpponentPlayer UPDATE failed:', error.message)
+      return { name: cleanName, team_id: teamId, opponent_name: opponentName }
+    }
+  }
+
+  // No jersey match — delete by name to avoid name-based dupes, then insert fresh
   await supabase
     .from('players')
     .delete()
@@ -277,7 +306,7 @@ export async function upsertOpponentPlayer(teamId, opponentName, player) {
       team_side:       'opponent',
       opponent_name:   opponentName,
       name:            cleanName,
-      jersey:          player.jersey    || '',
+      jersey:          jersey,
       position:        player.position  || '',
       lineup_order:    player.lineup_order != null ? player.lineup_order : 1,
       batter_type:     'unknown',
