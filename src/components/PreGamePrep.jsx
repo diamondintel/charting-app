@@ -975,6 +975,7 @@ export default function PreGamePrep({ teamId, onClose }) {
           )}
         </div>
       </div>
+    </div>
 
     {/* ── Roster Confirmation — fixed overlay, always on top ── */}
     {confirmingRoster && (
