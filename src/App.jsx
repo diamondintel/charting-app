@@ -1438,7 +1438,10 @@ export default function App() {
           ourRuns={ourRuns}
           oppRuns={oppRuns}
           inning={inning}
-          onClose={() => setShowGameSummary(false)}
+          onClose={() => {
+            setShowGameSummary(false)
+            setSession(null)
+          }}
           onExportPDF={handleExportPDF}
         />
       )}
