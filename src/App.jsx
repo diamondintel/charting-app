@@ -212,7 +212,7 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
   )
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:24, padding:40 }}>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', minHeight:'100vh', gap:24, padding:40, overflowY:'auto' }}>
       <div style={{ fontFamily:"'Rajdhani', sans-serif", fontSize:32, fontWeight:700, color:'var(--gold)', letterSpacing:4 }}>
         PITCH INTELLIGENCE
       </div>
