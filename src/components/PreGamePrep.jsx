@@ -597,7 +597,7 @@ export default function PreGamePrep({ teamId, onClose }) {
         const batterType = t === 'HIGH' ? 'power' : t === 'LOW' ? 'unknown' : 'contact'
         await updateOpponentPlayerScouting(teamId, activeOpponent, p.name, {
           batter_type:     batterType,
-          batter_tendency: Array.isArray(p.tags) ? p.tags.join(',') : (p.tags || ''),
+          batter_tendency: Array.isArray(p.tags) ? p.tags.map(t => t.toLowerCase()).join(',') : (p.tags || '').toLowerCase(),
         })
       }
     } catch(e) { setError(`Report failed: ${e.message}`) }
