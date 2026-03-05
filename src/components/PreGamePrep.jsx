@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   getSavedOpponentTeams, getOpponentLineup, upsertOpponentPlayer, clearOpponentLineup,
-  saveScoutingBoxScore, getScoutingBoxScores, saveScoutingReport, getScoutingReport
+  saveScoutingBoxScore, getScoutingBoxScores, saveScoutingReport, getScoutingReport, updateOpponentPlayerScouting
 } from '../lib/db'
 
 const gold   = 'var(--gold)'
@@ -587,6 +587,19 @@ export default function PreGamePrep({ teamId, onClose }) {
       const rep = await generateScoutingReport(activeOpponent, data)
       await saveScoutingReport(teamId, activeOpponent, rep, data.length)
       setReport(rep)
+      const allScouted = [
+        ...(rep.danger_zone   || []).map(p => ({ ...p, threat_level: p.threat_level || 'HIGH' })),
+        ...(rep.attack_zone   || []).map(p => ({ ...p, threat_level: p.threat_level || 'LOW'  })),
+        ...(rep.pitcher_intel || []).map(p => ({ ...p, threat_level: p.threat       || 'MEDIUM' })),
+      ]
+      for (const p of allScouted) {
+        const t = (p.threat_level || '').toUpperCase()
+        const batterType = t === 'HIGH' ? 'power' : t === 'LOW' ? 'unknown' : 'contact'
+        await updateOpponentPlayerScouting(teamId, activeOpponent, p.name, {
+          batter_type:     batterType,
+          batter_tendency: Array.isArray(p.tags) ? p.tags.join(',') : (p.tags || ''),
+        })
+      }
     } catch(e) { setError(`Report failed: ${e.message}`) }
     finally { setGeneratingReport(false) }
   }
@@ -1097,3 +1110,4 @@ const inputStyle = {
   padding:'6px 8px', fontSize:12, width:'100%',
   fontFamily:"'Share Tech Mono',monospace", outline:'none',
 }
+
