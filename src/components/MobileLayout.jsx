@@ -238,6 +238,32 @@ function PitchTab({
                 <div style={{ fontFamily:mono, fontSize:7, color:C.dim, letterSpacing:2 }}>B · S</div>
               </div>
             </div>
+            {/* TENDENCY TAGS */}
+            {currentBatter?.batter_tendency && currentBatter.batter_tendency !== 'unknown' && (() => {
+              const tags = currentBatter.batter_tendency
+                .split(',')
+                .map(t => t.trim().toLowerCase())
+                .filter(t => t && t !== 'unknown' && t !== 'limited_data' && t !== 'low_ab_sample')
+              return tags.length > 0 ? (
+                <div style={{ display:'flex', flexWrap:'wrap', gap:4, padding:'0 12px 10px' }}>
+                  {tags.map(tag => (
+                    <span key={tag} style={{
+                      fontFamily: mono,
+                      fontSize: 8,
+                      letterSpacing: 1,
+                      padding: '2px 6px',
+                      borderRadius: 3,
+                      background: typeColor === C.red ? 'rgba(255,77,106,0.12)' : typeColor === C.cyan ? 'rgba(0,212,255,0.1)' : 'rgba(0,229,160,0.1)',
+                      border: `1px solid ${typeColor === C.red ? 'rgba(255,77,106,0.35)' : typeColor === C.cyan ? 'rgba(0,212,255,0.35)' : 'rgba(0,229,160,0.35)'}`,
+                      color: typeColor,
+                      textTransform: 'uppercase',
+                    }}>
+                      {tag.replace(/_/g,' ')}
+                    </span>
+                  ))}
+                </div>
+              ) : null
+            })()}
           </div>
         )
       })()}

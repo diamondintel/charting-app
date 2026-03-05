@@ -176,6 +176,31 @@ export default function LeftPanel({
                 {(currentBatter.batter_type || 'unknown').toUpperCase()}
               </div>
             </div>
+            {currentBatter?.batter_tendency && currentBatter.batter_tendency !== 'unknown' && (() => {
+              const tags = currentBatter.batter_tendency
+                .split(',')
+                .map(t => t.trim().toLowerCase())
+                .filter(t => t && t !== 'unknown' && t !== 'limited_data' && t !== 'low_ab_sample')
+              return tags.length > 0 ? (
+                <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:6 }}>
+                  {tags.map(tag => (
+                    <span key={tag} style={{
+                      fontFamily:"'Share Tech Mono',monospace",
+                      fontSize:8,
+                      letterSpacing:1,
+                      padding:'2px 6px',
+                      borderRadius:3,
+                      background: tc.bg,
+                      border: `1px solid ${tc.border}`,
+                      color: tc.color,
+                      textTransform:'uppercase',
+                    }}>
+                      {tag.replace(/_/g,' ')}
+                    </span>
+                  ))}
+                </div>
+              ) : null
+            })()}
             {batterStats && (
               <div className={styles.batterStatsRow}>
                 <div className={styles.batterStat}>
