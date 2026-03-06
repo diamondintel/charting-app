@@ -747,6 +747,23 @@ function GameTab({
             ✕ CLEAR BASES
           </button>
         </div>
+        {/* B-020: Caught Stealing buttons */}
+        <div style={{ marginTop:6, borderTop:`1px solid ${C.border}`, paddingTop:6 }}>
+          <div style={{ fontFamily:mono, fontSize:7, letterSpacing:2, color:C.red, marginBottom:4 }}>CAUGHT STEALING (OUT + REMOVE RUNNER)</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6 }}>
+            {[['1B','cs_1b', on1b],['2B','cs_2b', on2b],['3B','cs_3b', on3b]].map(([label, key, active]) => (
+              <button key={key}
+                onClick={() => onToggleBase && onToggleBase(key)}
+                disabled={!active}
+                style={{ padding:'8px 4px', borderRadius:5, cursor: active ? 'pointer' : 'default',
+                  border:`1px solid ${active ? 'rgba(255,77,106,0.5)' : C.border}`,
+                  background: active ? 'rgba(255,77,106,0.1)' : 'transparent',
+                  color: active ? C.red : C.dim, fontFamily:mono, fontSize:8, letterSpacing:1 }}>
+                CS {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Lineup Mode Selector */}

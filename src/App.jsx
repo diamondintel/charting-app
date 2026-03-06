@@ -959,6 +959,40 @@ export default function App() {
       }
     } else if (base === 'clear_bases') {
       setOn1b(false); setOn2b(false); setOn3b(false)
+    // B-020: Caught stealing — remove runner, add an out
+    } else if (base === 'cs_1b') {
+      setOn1b(false)
+      setOuts(prev => {
+        const next = prev + 1
+        if (next >= 3) {
+          setShowHalfInningModal({ inning, nextHalf: topBottom === 'top' ? 'bottom' : 'top', nextInning: topBottom === 'bottom' ? inning + 1 : inning, wasTop: topBottom === 'top' })
+          setOn1b(false); setOn2b(false); setOn3b(false)
+          return 0
+        }
+        return next
+      })
+    } else if (base === 'cs_2b') {
+      setOn2b(false)
+      setOuts(prev => {
+        const next = prev + 1
+        if (next >= 3) {
+          setShowHalfInningModal({ inning, nextHalf: topBottom === 'top' ? 'bottom' : 'top', nextInning: topBottom === 'bottom' ? inning + 1 : inning, wasTop: topBottom === 'top' })
+          setOn1b(false); setOn2b(false); setOn3b(false)
+          return 0
+        }
+        return next
+      })
+    } else if (base === 'cs_3b') {
+      setOn3b(false)
+      setOuts(prev => {
+        const next = prev + 1
+        if (next >= 3) {
+          setShowHalfInningModal({ inning, nextHalf: topBottom === 'top' ? 'bottom' : 'top', nextInning: topBottom === 'bottom' ? inning + 1 : inning, wasTop: topBottom === 'top' })
+          setOn1b(false); setOn2b(false); setOn3b(false)
+          return 0
+        }
+        return next
+      })
     }
   }
 
@@ -1134,73 +1168,101 @@ export default function App() {
         }
 
         // ── Baserunner advancement ──────────────────────────────────────
+        // B-016: addRuns() always credits the BATTING team, not hard-coded opponent
+        const addRuns = (n) => {
+          if (n <= 0) return
+          if (topBottom === 'top') setOppRuns(r => r + n)   // opponent bats top
+          else                     setOurRuns(r => r + n)   // we bat bottom
+        }
+
         const result = inPlayDetail.outcome_inplay
         if (isInPlay) {
           // Capture current base state before any mutations
           const was1b = on1b, was2b = on2b, was3b = on3b
 
-          // Auto-calculate expected runs from standard advancement
+          // Auto-calculate runs from standard NCAA advancement rules
           let autoRuns = 0
 
           if (result === 'Home Run') {
+            // All runners + batter score (Rule 12.13.5)
             autoRuns = 1 + (was1b ? 1 : 0) + (was2b ? 1 : 0) + (was3b ? 1 : 0)
             setOn1b(false); setOn2b(false); setOn3b(false)
+
           } else if (result === 'Triple') {
+            // All runners score, batter to 3B (Rule 12.13)
             autoRuns = (was1b ? 1 : 0) + (was2b ? 1 : 0) + (was3b ? 1 : 0)
             setOn1b(false); setOn2b(false); setOn3b(true)
+
           } else if (result === 'Double') {
-            // B-006: Standard double — 2B/3B score, runner on 1B goes to 3B
+            // 2B/3B score, 1B → 3B, batter to 2B (standard advancement)
             autoRuns = (was2b ? 1 : 0) + (was3b ? 1 : 0)
             setOn1b(false); setOn2b(true); setOn3b(was1b)
+
           } else if (result === 'Single') {
-            // B-006: Standard single — 3B scores, all others advance one base
+            // 3B scores, 2B→3B, 1B→2B, batter to 1B
             autoRuns = (was3b ? 1 : 0)
             setOn1b(true); setOn2b(was1b); setOn3b(was2b)
-          } else if (result === 'Sac Fly') {
-            if (was3b) { autoRuns = 1; setOn3b(false) }
-          } else if (result === 'Fielder Choice') {
-            // B-004: Batter reaches 1B, lead runner is out (coach adjusts bases manually)
-            setOn1b(true)
-          } else if (DP_RESULTS.has(result)) {
-            // B-009: Double play — batter out + one base runner out
-            // Standard: 1B runner out, batter is also out (already counted above)
-            // Clear 1B, other runners hold (coach can toggle if needed)
-            setOn1b(false)
-          } else if (result === 'Error') {
-            // B-004: Batter reaches base on error — advance runners same as single
-            // Runner on 3B scores, others advance one base, batter to 1B
-            if (was3b) { autoRuns = 1 }
-            setOn1b(true); setOn2b(was1b); setOn3b(was2b)
-          }
-          // Add auto-calculated runs
-          if (autoRuns > 0) setOppRuns(r => r + autoRuns)
 
-          // B-007: If coach manually entered more runs than auto-calc (aggressive baserunning),
-          // add the difference so the scoreboard is always correct
-          // B-006: Also clear bases for runners that scored beyond auto-calc
+          } else if (result === 'Sac Fly') {
+            // Runner on 3B scores (Rule 14.9.1), others hold
+            if (was3b) { autoRuns = 1; setOn3b(false) }
+
+          } else if (result === 'Fielder Choice') {
+            // B-018: Lead runner is out, batter to 1B
+            // Clear the lead occupied base (3B→2B→1B priority), batter takes 1B
+            if (was3b)       { setOn3b(false); setOn1b(true) }
+            else if (was2b)  { setOn2b(false); setOn1b(true) }
+            else             { setOn1b(true) }  // no lead runner, just batter
+
+          } else if (DP_RESULTS.has(result)) {
+            // B-009/B-019: Double play — requires at least one runner
+            // Batter out + lead runner out. Clear 1B (most common DP).
+            if (was1b) setOn1b(false)
+            else if (was2b) setOn2b(false)  // rare — no one on 1B
+
+          } else if (result === 'Error') {
+            // B-017: Error — batter reaches 1B ONLY
+            // Do NOT auto-advance other runners (Rule 14.20.1 — advancement
+            // on an error is discretionary, coach manages bases manually)
+            setOn1b(true)
+            // Note: if there was already a runner on 1B, they may have advanced
+            // Coach uses the steal/toggle buttons to move runners as appropriate
+
+          } else if (result === 'Groundout' || result === 'Flyout' ||
+                     result === 'Lineout'   || result === 'Popout') {
+            // Standard outs — runners hold (no automatic advancement on outs)
+            // Coach can manually advance any runners that tagged up, etc.
+          }
+
+          // Add auto-calculated runs to BATTING team (B-016)
+          addRuns(autoRuns)
+
+          // B-007: Coach manually entered more runs than auto-calc
+          // (aggressive baserunning, runners scored that wouldn't by default)
           const manualRuns = inPlayDetail.runs_scored || 0
           if (manualRuns > autoRuns) {
-            setOppRuns(r => r + (manualRuns - autoRuns))
-            // Extra runners scored — clear bases that were set by auto-advance
-            // On a single: if was2b scored (manualRuns>=2 or was2b and no was3b), clear 3B
+            addRuns(manualRuns - autoRuns)
+            // Clear ghost runners — if extra runners scored, they shouldn't sit on base
             if (result === 'Single' && was2b && !was3b && manualRuns >= 1) {
-              setOn3b(false)  // 2B runner scored, not on 3B
+              setOn3b(false)  // 2B runner scored aggressively, not on 3B
             }
-            // On a double: if was1b scored (manualRuns>=2), clear 3B
             if (result === 'Double' && was1b && manualRuns >= 2) {
-              setOn3b(false)  // 1B runner scored from 3B
+              setOn3b(false)  // 1B runner scored all the way, not on 3B
             }
           } else if (autoRuns === 0 && manualRuns > 0) {
-            // Non-standard result with manual runs (e.g. Groundout with runner scoring)
-            setOppRuns(r => r + manualRuns)
+            // Non-hit result where coach manually tracked runs (e.g. Groundout, Error)
+            addRuns(manualRuns)
           }
+
         } else if (isWalk || isHBP) {
-          // Walk/HBP — force runners with captured state
+          // Walk/HBP — force runners (Rule 12.13.1)
           const was1b = on1b, was2b = on2b, was3b = on3b
-          if (was1b && was2b && was3b) { setOppRuns(r => r + 1); }
+          if (was1b && was2b && was3b) { addRuns(1) }   // B-016: bases loaded walk scores
           setOn3b(was1b && was2b ? true : was3b)
           setOn2b(was1b ? true : was2b)
           setOn1b(true)
+        } else if (isBuntFoulK) {
+          // Bunt foul strikeout — no base changes
         }
 
         // ── Advance to next batter ────────────────────────────────────
@@ -1385,7 +1447,11 @@ export default function App() {
     }
   }
 
-  const canRecord = !!(selectedZone && selectedPitch && selectedOutcome)
+  // B-019: Double play requires at least one runner on base (Rule 14.22.1)
+  const isDPAttempt = selectedOutcome === 'IP' && 
+    (inPlayDetail.outcome_inplay === 'Double Play' || inPlayDetail.outcome_inplay === 'DP (FC)')
+  const dpBlockedNoRunners = isDPAttempt && !on1b && !on2b && !on3b
+  const canRecord = !!(selectedZone && selectedPitch && selectedOutcome) && !dpBlockedNoRunners
   const canUndo   = paPitches.length > 0 || paUndoStack.length > 0  // B-003/B-008: two-level undo
 
   // ── In-game substitution: swap sub into lineup slot, move starter to bench ────
