@@ -669,10 +669,14 @@ function GameTab({
         </div>
       </div>
 
-      {/* Bases */}
+      {/* Bases + Runner Controls — B-005 */}
       <div style={{ padding:'10px 12px', background:C.panel, borderRadius:8, border:`1px solid ${C.border}` }}>
-        <div style={{ fontFamily:mono, fontSize:7, letterSpacing:2, color:C.dim, marginBottom:8 }}>RUNNERS</div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+          <div style={{ fontFamily:mono, fontSize:7, letterSpacing:2, color:C.dim }}>RUNNERS</div>
+          <div style={{ fontFamily:mono, fontSize:7, color:C.dim }}>TAP TO TOGGLE · USE ARROWS TO MOVE</div>
+        </div>
+        {/* Base toggles */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:8 }}>
           {[['3B', on3b, '3b'],['2B', on2b, '2b'],['1B', on1b, '1b']].map(([label, active, key]) => (
             <button key={key} onClick={() => onToggleBase(key)} style={{
               padding:'12px 4px', borderRadius:6, cursor:'pointer',
@@ -682,6 +686,40 @@ function GameTab({
               fontFamily:bebas, fontSize:18, letterSpacing:2,
             }}>{label} {active ? '●' : '○'}</button>
           ))}
+        </div>
+        {/* B-005: Runner advance / steal buttons */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:6 }}>
+          <button
+            onClick={() => onToggleBase && onToggleBase('steal_2b')}
+            disabled={!on1b}
+            style={{ padding:'8px 4px', borderRadius:5, border:`1px solid ${on1b ? 'rgba(0,212,255,0.4)' : C.border}`,
+              background: on1b ? 'rgba(0,212,255,0.08)' : 'transparent',
+              color: on1b ? C.cyan : C.dim, fontFamily:mono, fontSize:8, letterSpacing:1, cursor: on1b ? 'pointer' : 'default' }}>
+            🏃 1B→2B (STEAL)
+          </button>
+          <button
+            onClick={() => onToggleBase && onToggleBase('steal_3b')}
+            disabled={!on2b}
+            style={{ padding:'8px 4px', borderRadius:5, border:`1px solid ${on2b ? 'rgba(0,212,255,0.4)' : C.border}`,
+              background: on2b ? 'rgba(0,212,255,0.08)' : 'transparent',
+              color: on2b ? C.cyan : C.dim, fontFamily:mono, fontSize:8, letterSpacing:1, cursor: on2b ? 'pointer' : 'default' }}>
+            🏃 2B→3B (STEAL)
+          </button>
+          <button
+            onClick={() => onToggleBase && onToggleBase('steal_home')}
+            disabled={!on3b}
+            style={{ padding:'8px 4px', borderRadius:5, border:`1px solid ${on3b ? 'rgba(255,77,106,0.4)' : C.border}`,
+              background: on3b ? 'rgba(255,77,106,0.08)' : 'transparent',
+              color: on3b ? C.red : C.dim, fontFamily:mono, fontSize:8, letterSpacing:1, cursor: on3b ? 'pointer' : 'default' }}>
+            🏠 3B→HOME (STEAL)
+          </button>
+          <button
+            onClick={() => onToggleBase && onToggleBase('clear_bases')}
+            style={{ padding:'8px 4px', borderRadius:5, border:`1px solid rgba(255,80,80,0.25)`,
+              background:'rgba(255,80,80,0.05)',
+              color:'rgba(255,80,80,0.6)', fontFamily:mono, fontSize:8, letterSpacing:1, cursor:'pointer' }}>
+            ✕ CLEAR BASES
+          </button>
         </div>
       </div>
 
@@ -813,7 +851,7 @@ function GameTab({
       {/* Pitcher */}
       {pitchers?.length > 0 && (
         <div style={{ padding:'10px 12px', background:C.panel, borderRadius:8, border:`1px solid ${C.border}` }}>
-          <div style={{ fontFamily:mono, fontSize:7, letterSpacing:2, color:C.dim, marginBottom:8 }}>PITCHER</div>
+          <div style={{ fontFamily:mono, fontSize:7, letterSpacing:2, color:C.dim, marginBottom:8 }}>OUR PITCHER {topBottom === 'top' ? '(PITCHING VS THEM)' : '(PITCHING VS US)'}</div>
           {pitchers.length > 1 ? (
             <select value={pitchers.find(p=>p.name===pitcherName)?.player_id||''} onChange={e=>onPitcherChange(e.target.value)} style={{
               width:'100%', background:C.panel, border:`1px solid ${C.border}`, color:C.pri, borderRadius:4, padding:'10px', fontSize:14, fontFamily:sans,
@@ -917,15 +955,16 @@ export default function MobileLayout({
             on1b={on1b} on2b={on2b} on3b={on3b} onToggleBase={onToggleBase}
             ourRuns={ourRuns} oppRuns={oppRuns} onScoreChange={onScoreChange}
             onInningChange={onInningChange}
-            lineup={lineup} lineupPos={lineupPos} onSelectBatter={onSelectBatter}
-            subs={subs} onSubstitute={onSubstitute}
-            lineupMode={lineupMode} onLineupModeChange={onLineupModeChange}
-            manualBatterName={manualBatterName} onManualBatterName={onManualBatterName}
+            lineup={lineup || []} lineupPos={lineupPos ?? 0} onSelectBatter={onSelectBatter}
+            subs={subs || []} onSubstitute={onSubstitute}
+            lineupMode={lineupMode || 'standard'} onLineupModeChange={onLineupModeChange}
+            manualBatterName={manualBatterName || ''} onManualBatterName={onManualBatterName}
             currentBatter={currentBatter} batterStats={batterStats}
-            paPitches={paPitches} onNewPA={onNewPA}
-            pitchers={pitchers} pitcherName={pitcherName} onPitcherChange={onPitcherChange}
+            paPitches={paPitches || []} onNewPA={onNewPA}
+            pitchers={pitchers || []} pitcherName={pitcherName || ''} onPitcherChange={onPitcherChange}
             onRoster={onRoster}
             onEndGame={onEndGame}
+            hitterNotes={hitterNotes || {}} onSaveNote={onSaveNote}
           />
         )}
         {tab === 'book' && (

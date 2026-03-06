@@ -171,7 +171,7 @@ function SetupScreen({ onGameReady, onSignOut, authUser }) {
 
   useEffect(() => {
     if (!selectedTeam) return
-    getGames(selectedTeam.team_id).then(setGames).catch(console.error)
+    getGames(selectedTeam.team_id).then(gs => setGames([...gs].sort((a,b) => b.game_id - a.game_id))).catch(console.error)  // B-011: newest first
     getPitchers(selectedTeam.team_id).then(ps => {
       setPitchers(ps)
       setSelectedPitcher(ps.length > 0 ? ps[0] : null)
@@ -554,6 +554,18 @@ export default function App() {
   const [authUser, setAuthUser]           = useState(undefined) // undefined=loading, null=logged out, object=logged in
   const [needsPasswordReset, setNeedsPasswordReset] = useState(false)
   const [session, setSession] = useState(null) // { team, game, savedState? }
+
+  // B-002: Wrap setSession to persist/clear active game_id in sessionStorage
+  function startSession(sessionData) {
+    if (sessionData?.game?.game_id) {
+      try { sessionStorage.setItem('pi_active_game_id', String(sessionData.game.game_id)) } catch(e) {}
+    }
+    setSession(sessionData)
+  }
+  function endSession() {
+    try { sessionStorage.removeItem('pi_active_game_id') } catch(e) {}
+    setSession(null)
+  }
   const [showRoster, setShowRoster] = useState(false)
   const [saveStatus, setSaveStatus] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [hitterNotes, setHitterNotes] = useState({}) // { batterName: { text, tags } }
@@ -603,11 +615,13 @@ export default function App() {
   const [selectedZone, setSelectedZone] = useState(null)
   const [selectedPitch, setSelectedPitch] = useState(null)
   const [selectedOutcome, setSelectedOutcome] = useState(null)
-  const [inPlayDetail, setInPlayDetail] = useState({ outcome_inplay: '', fielder: '', location: '', runs_scored: 0, rbi: 0 })
+  const [inPlayDetail, setInPlayDetail] = useState({ outcome_inplay: '', fielder: '', location: '', runs_scored: 0, rbi: 0, foul_location: '' })  // B-014: foul_location added
 
   // ── Pitch data ────────────────────────────────────────────────────────────────
   const [gamePitches, setGamePitches]   = useState([])
   const [paPitches, setPAPitches]       = useState([])  // pitches this PA
+  // B-008/B-003: PA-level undo stack — stores full game state snapshots before each PA closes
+  const [paUndoStack, setPaUndoStack]   = useState([])  // [{lineupPos,outs,on1b,on2b,on3b,ourRuns,oppRuns,pa,pitches}]
   const [allPAs, setAllPAs]             = useState([])
 
   // ── Split a roster into starters (batting lineup) and subs ─────────────────────
@@ -756,6 +770,30 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [inning, topBottom, outs, ourRuns, oppRuns, on1b, on2b, on3b, lineupPos, pitcherName, lineupMode, activePA])
 
+  // B-002: On auth, check sessionStorage for interrupted game and auto-resume
+  useEffect(() => {
+    if (!authUser) return
+    const savedId = (() => { try { return sessionStorage.getItem('pi_active_game_id') } catch(e) { return null } })()
+    if (!savedId || session) return
+    async function tryResume() {
+      try {
+        const teams = await getTeams()
+        for (const team of teams) {
+          const games = await getGames(team.team_id)
+          const game = games.find(g => String(g.game_id) === savedId)
+          if (game) {
+            const savedState = await loadGameState(game.game_id).catch(() => null)
+            startSession({ team, game, savedState })
+            toast.success('Game resumed after refresh')
+            return
+          }
+        }
+        try { sessionStorage.removeItem('pi_active_game_id') } catch(e) {}
+      } catch(e) { console.warn('Auto-resume failed:', e.message) }
+    }
+    tryResume()
+  }, [authUser])
+
   // Keep refs current so async handlers don't capture stale closures
   lineupRef.current = lineup
 
@@ -874,7 +912,27 @@ export default function App() {
   function handleToggleBase(base) {
     if (base === '1b') setOn1b(v => !v)
     else if (base === '2b') setOn2b(v => !v)
-    else setOn3b(v => !v)
+    else if (base === '3b') setOn3b(v => !v)
+    // B-005: Stolen base / manual runner advance
+    else if (base === 'steal_2b') {
+      // 1B steals 2B
+      setOn1b(false)
+      setOn2b(true)
+    } else if (base === 'steal_3b') {
+      // 2B steals 3B
+      setOn2b(false)
+      setOn3b(true)
+    } else if (base === 'steal_home') {
+      // 3B steals home — scores a run
+      setOn3b(false)
+      if (topBottom === 'top') {
+        setOppRuns(r => r + 1)
+      } else {
+        setOurRuns(r => r + 1)
+      }
+    } else if (base === 'clear_bases') {
+      setOn1b(false); setOn2b(false); setOn3b(false)
+    }
   }
 
   function handleSelectBatter(idx) {
@@ -1029,10 +1087,15 @@ export default function App() {
       const isInPlay    = selectedOutcome === 'IP'
       const paOver      = isStrikeout || isWalk || isHBP || isInPlay
 
-      // Batter is out on: strikeout, or in-play non-hit
-      const HIT_RESULTS = new Set(['Single','Double','Triple','Home Run','Sac Fly'])
+      // Batter is out on: strikeout, or in-play out (groundout/flyout/etc)
+      // B-004: Error and Fielder Choice reach base — NOT outs
+      const HIT_RESULTS   = new Set(['Single','Double','Triple','Home Run','Sac Fly'])
+      const REACH_RESULTS = new Set(['Error','Fielder Choice'])  // batter reaches but not a hit
+      const OUT_RESULTS   = new Set(['Groundout','Flyout','Lineout','Popout','Sac Fly'])
+      const DP_RESULTS    = new Set(['Double Play','DP (FC)'])   // B-009: double play = 2 outs
       const batterOut   = isStrikeout
-                       || (isInPlay && !HIT_RESULTS.has(inPlayDetail.outcome_inplay) && inPlayDetail.outcome_inplay !== '')
+                       || (isInPlay && OUT_RESULTS.has(inPlayDetail.outcome_inplay))
+                       || (isInPlay && DP_RESULTS.has(inPlayDetail.outcome_inplay))
 
       if (paOver) {
         // Update PA result
@@ -1046,31 +1109,49 @@ export default function App() {
         if (isInPlay) {
           // Capture current base state before any mutations
           const was1b = on1b, was2b = on2b, was3b = on3b
+
+          // Auto-calculate expected runs from standard advancement
+          let autoRuns = 0
+
           if (result === 'Home Run') {
-            const runsScored = 1 + (was1b ? 1 : 0) + (was2b ? 1 : 0) + (was3b ? 1 : 0)
-            setOppRuns(r => r + runsScored)
+            autoRuns = 1 + (was1b ? 1 : 0) + (was2b ? 1 : 0) + (was3b ? 1 : 0)
             setOn1b(false); setOn2b(false); setOn3b(false)
           } else if (result === 'Triple') {
-            const runsScored = (was1b ? 1 : 0) + (was2b ? 1 : 0) + (was3b ? 1 : 0)
-            setOppRuns(r => r + runsScored)
+            autoRuns = (was1b ? 1 : 0) + (was2b ? 1 : 0) + (was3b ? 1 : 0)
             setOn1b(false); setOn2b(false); setOn3b(true)
           } else if (result === 'Double') {
-            const runsScored = (was2b ? 1 : 0) + (was3b ? 1 : 0)
-            setOppRuns(r => r + runsScored)
+            // B-006: Standard double — 2B/3B score, runner on 1B goes to 3B
+            autoRuns = (was2b ? 1 : 0) + (was3b ? 1 : 0)
             setOn1b(false); setOn2b(true); setOn3b(was1b)
           } else if (result === 'Single') {
-            const runsScored = (was3b ? 1 : 0)
-            setOppRuns(r => r + runsScored)
+            // B-006: Standard single — 3B scores, all others advance one base
+            autoRuns = (was3b ? 1 : 0)
             setOn1b(true); setOn2b(was1b); setOn3b(was2b)
           } else if (result === 'Sac Fly') {
-            if (was3b) { setOppRuns(r => r + 1); setOn3b(false) }
+            if (was3b) { autoRuns = 1; setOn3b(false) }
           } else if (result === 'Fielder Choice') {
+            // B-004: Batter reaches 1B, lead runner is out (coach adjusts bases manually)
             setOn1b(true)
+          } else if (DP_RESULTS.has(result)) {
+            // B-009: Double play — batter out + one base runner out
+            // Standard: 1B runner out, batter is also out (already counted above)
+            // Clear 1B, other runners hold (coach can toggle if needed)
+            setOn1b(false)
           } else if (result === 'Error') {
+            // B-004: Batter reaches 1B on error
             setOn1b(true)
           }
-          if (!['Single','Double','Triple','Home Run','Sac Fly'].includes(result) && inPlayDetail.runs_scored > 0) {
-            setOppRuns(r => r + inPlayDetail.runs_scored)
+          // Add auto-calculated runs
+          if (autoRuns > 0) setOppRuns(r => r + autoRuns)
+
+          // B-007: If coach manually entered more runs than auto-calc (aggressive baserunning),
+          // add the difference so the scoreboard is always correct
+          const manualRuns = inPlayDetail.runs_scored || 0
+          if (manualRuns > autoRuns) {
+            setOppRuns(r => r + (manualRuns - autoRuns))
+          } else if (autoRuns === 0 && manualRuns > 0) {
+            // Non-standard result with manual runs (e.g. Groundout with runner scoring)
+            setOppRuns(r => r + manualRuns)
           }
         } else if (isWalk || isHBP) {
           // Walk/HBP — force runners with captured state
@@ -1089,8 +1170,10 @@ export default function App() {
         }
 
         // ── Update outs + handle inning change ─────────────────────────
+        // B-009: Double Play adds 2 outs total
+        const outsToAdd = DP_RESULTS.has(inPlayDetail.outcome_inplay) ? 2 : 1
         if (batterOut) {
-          const newOuts = outs + 1
+          const newOuts = outs + outsToAdd
           if (newOuts >= 3) {
             // 3 outs — end of half inning
             const isTop = topBottom === 'top'
@@ -1109,6 +1192,12 @@ export default function App() {
           }
         }
 
+        // B-008: Push snapshot to PA undo stack before closing PA
+        setPaUndoStack(prev => [...prev.slice(-9), {  // keep last 10 PAs
+          lineupPos, outs, on1b, on2b, on3b, ourRuns, oppRuns,
+          pa, pitches: paPitches,
+        }])
+
         setActivePA(null)
         setPAPitches([])
         setBalls(0)
@@ -1119,26 +1208,58 @@ export default function App() {
       // Reset pitch selections
       setSelectedZone(null)
       setSelectedOutcome(null)
-      setInPlayDetail({ outcome_inplay: '', fielder: '', location: '', runs_scored: 0, rbi: 0 })
+      setInPlayDetail({ outcome_inplay: '', fielder: '', location: '', runs_scored: 0, rbi: 0, foul_location: '' })
       // Keep pitch type selected for quick repeat
     } catch (e) { toast.error(`Failed to record pitch: ${e.message}`) }
   }
 
   async function handleUndo() {
-    const last = paPitches[paPitches.length - 1]
-    if (!last?.pitch_id) return
-    try {
-      await deletePitch(last.pitch_id)
-      const newPAPitches = paPitches.slice(0, -1)
-      setPAPitches(newPAPitches)
-      setGamePitches(prev => prev.filter(p => p.pitch_id !== last.pitch_id))
-      // Restore count
-      setBalls(last.balls_before)
-      setStrikes(last.strikes_before)
-      setSelectedZone({ row: last.zone_row, col: last.zone_col })
-      setSelectedPitch(last.pitch_type)
-      setSelectedOutcome(last.outcome_basic)
-    } catch (e) { toast.error(`Undo failed: ${e.message}`) }
+    // B-003/B-008: Two-level undo
+    // Level 1 (in-PA): remove last pitch from current PA
+    // Level 2 (post-PA): restore previous PA's game state
+
+    if (paPitches.length > 0) {
+      // ── Level 1: undo last pitch in current PA ──────────────────
+      const last = paPitches[paPitches.length - 1]
+      if (!last?.pitch_id) return
+      try {
+        await deletePitch(last.pitch_id)
+        const newPAPitches = paPitches.slice(0, -1)
+        setPAPitches(newPAPitches)
+        setGamePitches(prev => prev.filter(p => p.pitch_id !== last.pitch_id))
+        setBalls(last.balls_before)
+        setStrikes(last.strikes_before)
+        setSelectedZone({ row: last.zone_row, col: last.zone_col })
+        setSelectedPitch(last.pitch_type)
+        setSelectedOutcome(last.outcome_basic)
+      } catch (e) { toast.error(`Undo failed: ${e.message}`) }
+
+    } else if (paUndoStack.length > 0) {
+      // ── Level 2: undo last completed PA ──────────────────────────
+      const prev = paUndoStack[paUndoStack.length - 1]
+      try {
+        // Delete all pitches from that PA
+        for (const p of prev.pitches) {
+          if (p.pitch_id) await deletePitch(p.pitch_id).catch(() => {})
+        }
+        // Delete the PA record if it exists
+        if (prev.pa?.pa_id) {
+          const { deletePARecord } = await import('./lib/db')
+          await deletePARecord(prev.pa.pa_id).catch(() => {})
+        }
+        // Restore game state to pre-PA snapshot
+        setLineupPos(prev.lineupPos)
+        setOuts(prev.outs)
+        setOn1b(prev.on1b); setOn2b(prev.on2b); setOn3b(prev.on3b)
+        setOurRuns(prev.ourRuns); setOppRuns(prev.oppRuns)
+        setGamePitches(gp => gp.filter(p => !prev.pitches.some(pp => pp.pitch_id === p.pitch_id)))
+        setAllPAs(ap => ap.filter(a => a.pa_id !== prev.pa?.pa_id))
+        // Pop the stack
+        setPaUndoStack(s => s.slice(0, -1))
+        setBalls(0); setStrikes(0)
+        toast.success('Last at-bat undone')
+      } catch (e) { toast.error(`Undo failed: ${e.message}`) }
+    }
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -1155,13 +1276,13 @@ export default function App() {
   if (authUser === null) return <AuthScreen />
 
   if (!session) {
-    return <SetupScreen onGameReady={setSession} onSignOut={handleSignOut} authUser={authUser} />
+    return <SetupScreen onGameReady={startSession} onSignOut={handleSignOut} authUser={authUser} />
   }
 
   // ── Sign out ──────────────────────────────────────────────────────────────────
   async function handleSignOut() {
     await signOut()
-    setSession(null)
+    endSession()
     setAuthUser(null)
     toast.info('Signed out')
   }
@@ -1228,7 +1349,7 @@ export default function App() {
   }
 
   const canRecord = !!(selectedZone && selectedPitch && selectedOutcome)
-  const canUndo   = paPitches.length > 0
+  const canUndo   = paPitches.length > 0 || paUndoStack.length > 0  // B-003/B-008: two-level undo
 
   // ── In-game substitution: swap sub into lineup slot, move starter to bench ────
   function handleSubstitution(lineupIdx, subPlayer) {
@@ -1440,7 +1561,7 @@ export default function App() {
           inning={inning}
           onClose={() => {
             setShowGameSummary(false)
-            setSession(null)
+            endSession()
           }}
           onExportPDF={handleExportPDF}
         />

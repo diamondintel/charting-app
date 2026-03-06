@@ -9,9 +9,10 @@ const OUTCOMES = [
   { code: 'HBP', label: 'HBP',       color: 'var(--purple)', border: 'rgba(167,139,250,0.25)', glow: 'rgba(167,139,250,0.3)' },
 ]
 
-const INPLAY_RESULTS = ['Single','Double','Triple','Home Run','Groundout','Flyout','Lineout','Popout','Sac Fly','Fielder Choice','Error']
+const INPLAY_RESULTS = ['Single','Double','Triple','Home Run','Groundout','Flyout','Lineout','Popout','Sac Fly','Fielder Choice','Double Play','DP (FC)','Error']
 const FIELDERS       = ['P','C','1B','2B','3B','SS','LF','CF','RF']
 const LOCATIONS      = ['Infield','Left','Center','Right','Deep L','Deep C','Deep R','Foul Terr']
+const FOUL_LOCATIONS = ['Bunt Foul','Pull Foul','Oppo Foul','Deep L Foul','Deep R Foul','Back Screen']
 
 export default function BottomConsole({
   selectedOutcome, onSelectOutcome,
@@ -25,6 +26,25 @@ export default function BottomConsole({
 
   return (
     <div className={styles.consoleWrap}>
+
+      {/* ── B-014: Foul location picker ── */}
+      {selectedOutcome === 'F' && (
+        <div style={{ padding:'8px 12px', background:'rgba(255,179,71,0.05)', borderTop:'1px solid rgba(255,179,71,0.2)', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+          <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:2, color:'var(--amber)', whiteSpace:'nowrap' }}>FOUL LOCATION</div>
+          {FOUL_LOCATIONS.map(fl => (
+            <button key={fl}
+              onClick={() => onInPlayChange({ ...inPlayDetail, foul_location: inPlayDetail.foul_location === fl ? '' : fl })}
+              style={{
+                padding:'4px 8px', borderRadius:4, cursor:'pointer', fontSize:9, fontFamily:"'Share Tech Mono',monospace",
+                border: inPlayDetail.foul_location === fl ? '1px solid var(--amber)' : '1px solid rgba(255,179,71,0.2)',
+                background: inPlayDetail.foul_location === fl ? 'rgba(255,179,71,0.15)' : 'transparent',
+                color: inPlayDetail.foul_location === fl ? 'var(--amber)' : 'var(--text-dim)',
+              }}>
+              {fl}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── In Play detail sheet ── */}
       {showInPlay && (
