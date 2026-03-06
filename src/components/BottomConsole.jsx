@@ -20,8 +20,12 @@ export default function BottomConsole({
   onRecord, onUndo, onNewPA, onRoster, onScorebook, onEndGame,
   pitchers, pitcherName, onPitcherChange,
   canRecord, canUndo,
+  strikes = 0,
 }) {
   const showInPlay = selectedOutcome === 'IP'
+  const isBuntFoulWarning = selectedOutcome === 'F'
+    && inPlayDetail.foul_location === 'Bunt Foul'
+    && strikes === 2
   const upd = (key, val) => onInPlayChange({ ...inPlayDetail, [key]: val })
 
   return (
@@ -31,6 +35,11 @@ export default function BottomConsole({
       {selectedOutcome === 'F' && (
         <div style={{ padding:'8px 12px', background:'rgba(255,179,71,0.05)', borderTop:'1px solid rgba(255,179,71,0.2)', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
           <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:2, color:'var(--amber)', whiteSpace:'nowrap' }}>FOUL LOCATION</div>
+          {isBuntFoulWarning && (
+            <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:8, letterSpacing:1, color:'var(--red)', background:'rgba(255,77,106,0.12)', border:'1px solid rgba(255,77,106,0.4)', borderRadius:4, padding:'2px 8px', whiteSpace:'nowrap' }}>
+              ⚠ BUNT FOUL · 2 STRIKES = OUT
+            </div>
+          )}
           {FOUL_LOCATIONS.map(fl => (
             <button key={fl}
               onClick={() => onInPlayChange({ ...inPlayDetail, foul_location: inPlayDetail.foul_location === fl ? '' : fl })}

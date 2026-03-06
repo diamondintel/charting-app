@@ -725,6 +725,8 @@ export default function App() {
           setLineupPos(restoredPos)  // lastLineupPosRef auto-syncs
           setLineupMode(savedState.lineup_mode ?? 'standard')
           if (savedState.pitcher_name) setPitcherName(savedState.pitcher_name)
+          if (savedState.balls    != null) setBalls(savedState.balls)
+          if (savedState.strikes  != null) setStrikes(savedState.strikes)
         }
 
         // ── Step 3: pitch history + hitter notes ──────────────────────
@@ -750,24 +752,25 @@ export default function App() {
   useEffect(() => {
     if (!session?.game?.game_id) return
     setSaveStatus('saving')
-    const timer = setTimeout(async () => {
+    const timer = setTimeout(async () => {  // B-002: reduced from 1500ms
       try {
         await saveGameState(session.game.game_id, {
           inning, topBottom, outs,
           ourRuns, oppRuns,
           on1b, on2b, on3b,
           lineupPos, pitcherName, lineupMode,
+          balls, strikes,
           activePaId: activePA?.pa_id || null,
         })
         setSaveStatus('saved')
         // Reset to idle after 2s
-        setTimeout(() => setSaveStatus('idle'), 2000)
+        setTimeout(() => setSaveStatus('idle'), 2000)  // B-002
       } catch (e) {
         toast.warn('Auto-save failed — check connection', { duration: 6000 })
         setSaveStatus('error')
       }
-    }, 1500)
-    return () => clearTimeout(timer)
+    }, 300)
+    return () => clearTimeout(timer)  // B-002: was 1500ms
   }, [inning, topBottom, outs, ourRuns, oppRuns, on1b, on2b, on3b, lineupPos, pitcherName, lineupMode, activePA])
 
   // B-002: On auth, check sessionStorage for interrupted game and auto-resume
@@ -793,6 +796,30 @@ export default function App() {
     }
     tryResume()
   }, [authUser])
+
+  // B-002: Save game state immediately on page unload (refresh/close)
+  useEffect(() => {
+    if (!session?.game?.game_id) return
+    function handleBeforeUnload() {
+      // Use sendBeacon for reliable fire-and-forget on page unload
+      const state = {
+        inning, top_bottom: topBottom, outs,
+        our_runs: ourRuns, opp_runs: oppRuns,
+        on1b, on2b, on3b,
+        lineup_pos: lineupPos, pitcher_name: pitcherName, lineup_mode: lineupMode,
+        saved_at: new Date().toISOString(),
+      }
+      // Best-effort saveGameState via fetch (may not complete but usually does)
+      saveGameState(session.game.game_id, {
+        inning, topBottom, outs, ourRuns, oppRuns,
+        on1b, on2b, on3b, lineupPos, pitcherName, lineupMode,
+        balls, strikes,
+        activePaId: activePA?.pa_id || null,
+      }).catch(() => {})
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [session, inning, topBottom, outs, ourRuns, oppRuns, on1b, on2b, on3b, lineupPos, pitcherName, lineupMode, activePA])
 
   // Keep refs current so async handlers don't capture stale closures
   lineupRef.current = lineup
@@ -1085,7 +1112,9 @@ export default function App() {
       const isWalk      = selectedOutcome === 'B'   && next.balls >= 4
       const isHBP       = selectedOutcome === 'HBP'
       const isInPlay    = selectedOutcome === 'IP'
-      const paOver      = isStrikeout || isWalk || isHBP || isInPlay
+      // B-014: Bunt foul on 2 strikes = strikeout (NFHS/USSSA rule)
+      const isBuntFoulK = selectedOutcome === 'F' && inPlayDetail.foul_location === 'Bunt Foul' && strikes === 2
+      const paOver      = isStrikeout || isWalk || isHBP || isInPlay || isBuntFoulK
 
       // Batter is out on: strikeout, or in-play out (groundout/flyout/etc)
       // B-004: Error and Fielder Choice reach base — NOT outs
@@ -1093,7 +1122,7 @@ export default function App() {
       const REACH_RESULTS = new Set(['Error','Fielder Choice'])  // batter reaches but not a hit
       const OUT_RESULTS   = new Set(['Groundout','Flyout','Lineout','Popout','Sac Fly'])
       const DP_RESULTS    = new Set(['Double Play','DP (FC)'])   // B-009: double play = 2 outs
-      const batterOut   = isStrikeout
+      const batterOut   = isStrikeout || isBuntFoulK
                        || (isInPlay && OUT_RESULTS.has(inPlayDetail.outcome_inplay))
                        || (isInPlay && DP_RESULTS.has(inPlayDetail.outcome_inplay))
 
@@ -1138,17 +1167,29 @@ export default function App() {
             // Clear 1B, other runners hold (coach can toggle if needed)
             setOn1b(false)
           } else if (result === 'Error') {
-            // B-004: Batter reaches 1B on error
-            setOn1b(true)
+            // B-004: Batter reaches base on error — advance runners same as single
+            // Runner on 3B scores, others advance one base, batter to 1B
+            if (was3b) { autoRuns = 1 }
+            setOn1b(true); setOn2b(was1b); setOn3b(was2b)
           }
           // Add auto-calculated runs
           if (autoRuns > 0) setOppRuns(r => r + autoRuns)
 
           // B-007: If coach manually entered more runs than auto-calc (aggressive baserunning),
           // add the difference so the scoreboard is always correct
+          // B-006: Also clear bases for runners that scored beyond auto-calc
           const manualRuns = inPlayDetail.runs_scored || 0
           if (manualRuns > autoRuns) {
             setOppRuns(r => r + (manualRuns - autoRuns))
+            // Extra runners scored — clear bases that were set by auto-advance
+            // On a single: if was2b scored (manualRuns>=2 or was2b and no was3b), clear 3B
+            if (result === 'Single' && was2b && !was3b && manualRuns >= 1) {
+              setOn3b(false)  // 2B runner scored, not on 3B
+            }
+            // On a double: if was1b scored (manualRuns>=2), clear 3B
+            if (result === 'Double' && was1b && manualRuns >= 2) {
+              setOn3b(false)  // 1B runner scored from 3B
+            }
           } else if (autoRuns === 0 && manualRuns > 0) {
             // Non-standard result with manual runs (e.g. Groundout with runner scoring)
             setOppRuns(r => r + manualRuns)
@@ -1242,11 +1283,7 @@ export default function App() {
         for (const p of prev.pitches) {
           if (p.pitch_id) await deletePitch(p.pitch_id).catch(() => {})
         }
-        // Delete the PA record if it exists
-        if (prev.pa?.pa_id) {
-          const { deletePARecord } = await import('./lib/db')
-          await deletePARecord(prev.pa.pa_id).catch(() => {})
-        }
+        // Note: PA record left in DB (orphaned is fine — pitches deleted above)
         // Restore game state to pre-PA snapshot
         setLineupPos(prev.lineupPos)
         setOuts(prev.outs)
@@ -1585,6 +1622,7 @@ export default function App() {
         onNewPA={handleNewPA}
         canRecord={canRecord}
         canUndo={canUndo}
+        strikes={strikes}
       />
     </div>
   )

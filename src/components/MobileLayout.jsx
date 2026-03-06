@@ -38,7 +38,8 @@ const OUTCOMES = [
   { code:'IP',  label:'IN PLAY'  },
   { code:'HBP', label:'HBP'      },
 ]
-const INPLAY_RESULTS = ['Single','Double','Triple','Home Run','Groundout','Flyout','Lineout','Popout','Sac Fly','Fielder Choice','Error']
+const INPLAY_RESULTS = ['Single','Double','Triple','Home Run','Groundout','Flyout','Lineout','Popout','Sac Fly','Fielder Choice','Double Play','DP (FC)','Error']
+const FOUL_LOCATIONS = ['Bunt Foul','Pull Foul','Oppo Foul','Deep L Foul','Deep R Foul','Back Screen']
 const FIELDERS = ['P','C','1B','2B','3B','SS','LF','CF','RF']
 const LOCATIONS = ['Infield','Left','Center','Right','Deep L','Deep C','Deep R']
 
@@ -416,6 +417,30 @@ function PitchTab({
         </div>
       </div>
 
+      {/* B-014: Foul location picker */}
+      {selectedOutcome === 'F' && (
+        <div style={{ background:C.panel, border:`1px solid rgba(255,179,71,0.2)`, borderRadius:8, padding:10 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8, flexWrap:'wrap' }}>
+            <div style={{ fontFamily:mono, fontSize:8, letterSpacing:2, color:C.amber }}>FOUL LOCATION</div>
+            {strikes === 2 && inPlayDetail.foul_location === 'Bunt Foul' && (
+              <div style={{ fontFamily:mono, fontSize:8, color:C.red, background:'rgba(255,77,106,0.12)', border:'1px solid rgba(255,77,106,0.4)', borderRadius:4, padding:'2px 8px' }}>
+                ⚠ BUNT FOUL · 2 STRIKES = OUT
+              </div>
+            )}
+          </div>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+            {FOUL_LOCATIONS.map(fl => (
+              <button key={fl} onClick={() => upd('foul_location', inPlayDetail.foul_location === fl ? '' : fl)} style={{
+                padding:'6px 10px', borderRadius:4, fontSize:11, cursor:'pointer', fontFamily:sans,
+                border:`1px solid ${inPlayDetail.foul_location===fl ? C.amber : C.border}`,
+                background: inPlayDetail.foul_location===fl ? 'rgba(255,179,71,0.12)' : 'transparent',
+                color: inPlayDetail.foul_location===fl ? C.amber : C.sec,
+              }}>{fl}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* In-play detail */}
       {showInPlay && (
         <div style={{ background:C.panel, border:`1px solid rgba(0,229,160,0.2)`, borderRadius:8, padding:10 }}>
@@ -612,6 +637,7 @@ function GameTab({
   currentBatter, manualBatterName, onManualBatterName,
   batterStats, paPitches, onRoster, onPitcherChange, pitchers, pitcherName, onEndGame,
   onInningChange,
+  hitterNotes = {}, onSaveNote,
 }) {
   const mode = LINEUP_MODES[lineupMode] || LINEUP_MODES.standard
   const expectedBatters = mode.batters || lineup.length
