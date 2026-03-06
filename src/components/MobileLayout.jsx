@@ -952,7 +952,7 @@ export default function MobileLayout({
   arsenal, recommendations,
   selectedOutcome, onSelectOutcome,
   inPlayDetail, onInPlayChange,
-  onRecord, onUndo, canRecord, canUndo,
+  onRecord, onUndo, canRecord, canUndo, sacFlyBlocked = false,
   paPitches, onNewPA,
   // ai
   signals, pci, reverseSwitch, onApplyRec, aiSource='rule', aiLoading=false, aiTrigger=null,

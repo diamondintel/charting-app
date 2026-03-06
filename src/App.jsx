@@ -1207,12 +1207,32 @@ export default function App() {
             // Runner on 3B scores (Rule 14.9.1), others hold
             if (was3b) { autoRuns = 1; setOn3b(false) }
 
-          } else if (result === 'Fielder Choice') {
-            // B-018: Lead runner is out, batter to 1B
-            // Clear the lead occupied base (3B→2B→1B priority), batter takes 1B
-            if (was3b)       { setOn3b(false); setOn1b(true) }
-            else if (was2b)  { setOn2b(false); setOn1b(true) }
-            else             { setOn1b(true) }  // no lead runner, just batter
+          } else if (result === 'Fielder Choice' || result === 'DP (FC)' && false) {
+            // B-018: Fielder's Choice — lead runner out, batter to 1B (Rule 14.1.11)
+            // Defense chose to play on the lead runner instead of batter
+            // Priority: retire the furthest-advanced runner
+            if (was3b && was2b && was1b) {
+              // Bases loaded FC — runner on 3B out, others advance (forced)
+              setOn3b(false); setOn2b(true); setOn1b(true)  // batter forces everyone
+            } else if (was3b && was2b) {
+              setOn3b(false); setOn2b(true); setOn1b(true)
+            } else if (was3b && was1b) {
+              setOn3b(false); setOn1b(true)  // 3B out, 1B holds, batter to 1B... 
+              // but 1B is occupied — push 1B runner to 2B
+              setOn2b(true)
+            } else if (was3b) {
+              setOn3b(false); setOn1b(true)
+            } else if (was2b && was1b) {
+              setOn2b(false); setOn1b(true)  // 2B out, 1B holds, batter to 1B
+              // 1B occupied — push to 2B
+              setOn2b(true)
+            } else if (was2b) {
+              setOn2b(false); setOn1b(true)
+            } else if (was1b) {
+              setOn1b(true)  // 1B runner out, batter takes 1B
+            } else {
+              setOn1b(true)  // no runners, batter reaches
+            }
 
           } else if (DP_RESULTS.has(result)) {
             // B-009/B-019: Double play — requires at least one runner
@@ -1221,12 +1241,14 @@ export default function App() {
             else if (was2b) setOn2b(false)  // rare — no one on 1B
 
           } else if (result === 'Error') {
-            // B-017: Error — batter reaches 1B ONLY
-            // Do NOT auto-advance other runners (Rule 14.20.1 — advancement
-            // on an error is discretionary, coach manages bases manually)
+            // B-017: Error — batter reaches 1B
+            // Do NOT auto-advance other runners beyond the forced move (Rule 14.20.1)
+            // Exception: if 1B is occupied, that runner is forced to 2B (can't share base)
+            if (was1b) {
+              setOn2b(true)   // forced — runner on 1B must vacate for batter
+            }
             setOn1b(true)
-            // Note: if there was already a runner on 1B, they may have advanced
-            // Coach uses the steal/toggle buttons to move runners as appropriate
+            // Any further advancement (2B→3B, 3B→home) is coach's call via GAME tab arrows
 
           } else if (result === 'Groundout' || result === 'Flyout' ||
                      result === 'Lineout'   || result === 'Popout') {
@@ -1451,7 +1473,10 @@ export default function App() {
   const isDPAttempt = selectedOutcome === 'IP' && 
     (inPlayDetail.outcome_inplay === 'Double Play' || inPlayDetail.outcome_inplay === 'DP (FC)')
   const dpBlockedNoRunners = isDPAttempt && !on1b && !on2b && !on3b
-  const canRecord = !!(selectedZone && selectedPitch && selectedOutcome) && !dpBlockedNoRunners
+  // Sac Fly illegal with 2 outs (Rule 14.9.1 — fewer than 2 outs required)
+  const isSacFlyAttempt = selectedOutcome === 'IP' && inPlayDetail.outcome_inplay === 'Sac Fly'
+  const sacFlyBlocked = isSacFlyAttempt && outs >= 2
+  const canRecord = !!(selectedZone && selectedPitch && selectedOutcome) && !dpBlockedNoRunners && !sacFlyBlocked
   const canUndo   = paPitches.length > 0 || paUndoStack.length > 0  // B-003/B-008: two-level undo
 
   // ── In-game substitution: swap sub into lineup slot, move starter to bench ────
@@ -1688,6 +1713,7 @@ export default function App() {
         onNewPA={handleNewPA}
         canRecord={canRecord}
         canUndo={canUndo}
+        sacFlyBlocked={sacFlyBlocked}
         strikes={strikes}
       />
     </div>
