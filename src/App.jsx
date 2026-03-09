@@ -18,6 +18,7 @@ import BottomConsole from './components/BottomConsole'
 import RosterTab from './components/RosterTab'
 import Scorebook from './components/Scorebook'
 import MobileLayout from './components/MobileLayout'
+import RapidFireLayout from './components/RapidFireLayout'
 import {
   getTeams, getGames, createGame, deleteGame, getSavedOpponentTeams,
   getOpponentLineup, getPlayers, getPitchers,
@@ -576,6 +577,8 @@ export default function App() {
   const [aiTrigger, setAiTrigger]   = useState(null)   // current trigger type
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(null) // null | { reason }
   const [activeView, setActiveView] = useState('chart')  // 'chart' | 'scorebook'
+  const [gameMode, setGameMode]     = useState('command') // 'command' | 'rapid'
+  const [rfSequence, setRfSequence] = useState('odd')     // 'odd' | 'even'
   const [showScorebook, setShowScorebook] = useState(false)
   const [showHalfInningModal, setShowHalfInningModal] = useState(null)
   const windowWidth = useWindowWidth()
@@ -1525,6 +1528,9 @@ export default function App() {
     pitcher: pitchers.find(p => p.name === pitcherName) || null,
     Scorebook,
     saveStatus,
+    // RF-003: mode toggle
+    gameMode, onGameModeChange: setGameMode,
+    rfSequence, onSequenceChange: setRfSequence,
   }
 
   // ── Mobile layout (< 1024px) ──────────────────────────────────────────────────
@@ -1585,6 +1591,22 @@ export default function App() {
             borderRadius:4, padding:'5px 14px', cursor:'pointer', transition:'all 0.12s',
           }}>{label}</button>
         ))}
+        {/* RF-003: Mode toggle — only shown during active chart view */}
+        {activeView === 'chart' && (
+          <>
+            <div style={{ width:1, height:16, background:'#1A3550', margin:'0 4px' }} />
+            <span style={{ fontFamily:"'Share Tech Mono', monospace", fontSize:8, letterSpacing:2, color:'#3D6080' }}>MODE</span>
+            {[['command','⊞ COMMAND CENTER'],['rapid','⚡ RAPID FIRE']].map(([m, label]) => (
+              <button key={m} onClick={() => setGameMode(m)} style={{
+                background: gameMode === m ? 'rgba(245,200,66,0.12)' : 'rgba(255,255,255,0.03)',
+                border: `1px solid ${gameMode === m ? 'rgba(245,200,66,0.5)' : '#1A3550'}`,
+                color: gameMode === m ? '#f5c842' : '#7BACC8',
+                fontFamily:"'Share Tech Mono', monospace", fontSize:9, letterSpacing:1.5,
+                borderRadius:4, padding:'5px 14px', cursor:'pointer', transition:'all 0.12s',
+              }}>{label}</button>
+            ))}
+          </>
+        )}
         <div style={{ marginLeft:'auto', fontFamily:"'Share Tech Mono', monospace", fontSize:8, color:'#3D6080', letterSpacing:1 }}>
           {activeView === 'scorebook' ? `${gamePitches.length} PITCHES LOGGED` : `INN ${inning} · ${topBottom.toUpperCase()}`}
         </div>
@@ -1600,6 +1622,11 @@ export default function App() {
             topBottom={topBottom}
             session={session}
           />
+        </div>
+      ) : gameMode === 'rapid' ? (
+        /* RF-002: Rapid Fire layout — same game state, wristband numpad input */
+        <div style={{ flex:1, overflow:'hidden', display:'flex' }}>
+          <RapidFireLayout {...sharedProps} />
         </div>
       ) : (
 
@@ -1651,6 +1678,8 @@ export default function App() {
           onApplyRec={handleApplyRec}
         />
       </div>
+      )} {/* end command center grid */}
+      )} {/* end rapid/command ternary */}
       )} {/* end chart/scorebook ternary */}
 
       {showRoster && <RosterTab session={session} onClose={handleRosterClose} lineupMode={lineupMode} />}
