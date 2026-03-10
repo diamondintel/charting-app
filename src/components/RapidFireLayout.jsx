@@ -223,6 +223,10 @@ export default function RapidFireLayout({
 
   const numpadRows = getNumpadRows(rfSequence)
 
+  // Debug: log what rows we got so we can see in console
+  // eslint-disable-next-line no-console
+  console.log('[RF] numpadRows keys:', Object.keys(numpadRows), 'seq:', rfSequence)
+
   // ── Handle numpad tap ─────────────────────────────────────────────────────
   function handleCodeTap(code) {
     const decoded = decodeWristband(code)
@@ -333,8 +337,9 @@ export default function RapidFireLayout({
           flex:1, overflowY:'auto', padding:'8px 6px',
           display:'flex', flexDirection:'column', gap:4,
         }}>
-          {PITCH_ORDER.filter(pt => numpadRows[pt]).map(pitchType => {
+          {PITCH_ORDER.map(pitchType => {
             const row = numpadRows[pitchType]
+            if (!row) return null
             return (
               <div key={pitchType} style={{ display:'flex', gap:4, alignItems:'stretch' }}>
                 {/* Pitch label */}
